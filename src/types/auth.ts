@@ -3,6 +3,7 @@ export interface AuthUser {
   name: string
   email: string
   phoneNumber?: string
+  address?: string
   role: 'USER' | 'ADMIN'
   provider: 'GOOGLE' | 'APPLE' | 'FACEBOOK' | 'TWITTER' | 'CREDENTIALS'
   avatar?: string

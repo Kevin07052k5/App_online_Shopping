@@ -21,6 +21,7 @@ import { CryptoVisualizerModal } from './components/common/CryptoVisualizerModal
 import { TamperAlertModal } from './components/common/TamperAlertModal'
 import { NotificationToast } from './components/common/NotificationToast'
 import { AuthModal } from './components/auth/AuthModal'
+import { UserProfileModal } from './components/auth/UserProfileModal'
 import { Sparkles, Shield, ShoppingBag, Flame, Zap } from 'lucide-react'
 
 function MainContent() {
@@ -115,6 +116,7 @@ function MainContent() {
       <CryptoVisualizerModal />
       <TamperAlertModal />
       <AuthModal />
+      <UserProfileModal />
 
       {/* Global Notification Toast */}
       {toast && (

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { AuthUser, RegisterFormData } from '../types/auth'
+import { createClient } from '@/utils/supabase/client'
 
 interface AuthContextType {
   currentUser: AuthUser | null
@@ -17,6 +18,9 @@ interface AuthContextType {
   registerWithCredentials: (data: RegisterFormData) => Promise<{ success: boolean; error?: string }>
   loginWithCredentials: (emailOrUsername: string, pass: string) => Promise<{ success: boolean; isAdmin?: boolean; error?: string }>
   loginAdmin: (username: string, pass: string) => { success: boolean; error?: string }
+  isProfileModalOpen: boolean
+  setIsProfileModalOpen: (open: boolean) => void
+  updateProfile: (updatedData: Partial<AuthUser>) => Promise<{ success: boolean; error?: string }>
   logout: () => void
   logoutAdmin: () => void
 }
@@ -28,6 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false)
   const [authModalMode, setAuthModalMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN')
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
 
   // Load auth state from localStorage on client
   useEffect(() => {
@@ -163,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthModalOpen(false)
   }
 
-  // 5. Register with Credentials (Filling in Info)
+  // 5. Register with Credentials (Connecting to Supabase Auth & public.profiles)
   const registerWithCredentials = async (data: RegisterFormData): Promise<{ success: boolean; error?: string }> => {
     if (!data.name.trim()) return { success: false, error: 'Vui lòng nhập họ và tên' }
     if (!data.email.trim() || !data.email.includes('@')) return { success: false, error: 'Email không hợp lệ' }
@@ -172,20 +177,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (data.password !== data.confirmPassword) return { success: false, error: 'Mật khẩu xác nhận không khớp' }
     if (!data.agreeTerms) return { success: false, error: 'Vui lòng đồng ý với điều khoản bảo mật dữ liệu PII' }
 
-    const newUser: AuthUser = {
-      id: `usr-${Date.now()}`,
-      name: data.name.trim(),
-      email: data.email.trim().toLowerCase(),
-      phoneNumber: data.phoneNumber.trim(),
-      role: 'USER',
-      provider: 'CREDENTIALS',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=80',
-      createdAt: new Date().toISOString(),
-    }
+    const cleanEmail = data.email.trim().toLowerCase()
+    const cleanName = data.name.trim()
+    const cleanPhone = data.phoneNumber.trim()
+    const defaultAvatar = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=80'
 
-    saveUserToStorage(newUser)
-    setIsAuthModalOpen(false)
-    return { success: true }
+    try {
+      const supabase = createClient()
+
+      // 1. Gửi lệnh đăng ký tới Supabase Auth (tạo user trong auth.users)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: data.password,
+        options: {
+          data: {
+            name: cleanName,
+            full_name: cleanName,
+            phone_number: cleanPhone,
+            avatar_url: defaultAvatar,
+            role: 'USER',
+          },
+        },
+      })
+
+      if (authError) {
+        return { success: false, error: authError.message }
+      }
+
+      const userId = authData.user?.id || `usr-${Date.now()}`
+
+      // 2. Tự động upsert vào bảng public.profiles để đảm bảo hiển thị ngay trên Table Editor
+      if (authData.user) {
+        try {
+          await supabase.from('profiles').upsert({
+            id: authData.user.id,
+            email: cleanEmail,
+            name: cleanName,
+            phone_number: cleanPhone,
+            role: 'USER',
+            provider: 'CREDENTIALS',
+            avatar_url: defaultAvatar,
+          })
+        } catch (profileErr) {
+          console.warn('Lưu vào profiles bảng phụ:', profileErr)
+        }
+      }
+
+      const newUser: AuthUser = {
+        id: userId,
+        name: cleanName,
+        email: cleanEmail,
+        phoneNumber: cleanPhone,
+        role: 'USER',
+        provider: 'CREDENTIALS',
+        avatar: defaultAvatar,
+        createdAt: new Date().toISOString(),
+      }
+
+      saveUserToStorage(newUser)
+      setIsAuthModalOpen(false)
+      return { success: true }
+    } catch (err: any) {
+      console.error('Lỗi kết nối Supabase lúc đăng ký:', err)
+      return { success: false, error: err.message || 'Lỗi kết nối Supabase' }
+    }
   }
 
   // 4. Login with Credentials
@@ -217,7 +272,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!cleanUser) return { success: false, error: 'Vui lòng nhập email hoặc tên đăng nhập' }
     if (!cleanPass) return { success: false, error: 'Vui lòng nhập mật khẩu' }
 
-    // Mock successful user login
+    // Thử xác thực với Supabase nếu người dùng nhập định dạng email
+    try {
+      const supabase = createClient()
+      if (cleanUser.includes('@')) {
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: cleanUser,
+          password: cleanPass,
+        })
+
+        if (!authError && authData.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authData.user.id)
+            .maybeSingle()
+
+          const loggedUser: AuthUser = {
+            id: authData.user.id,
+            name: profile?.name || authData.user.user_metadata?.name || cleanUser.split('@')[0],
+            email: authData.user.email || cleanUser,
+            phoneNumber: profile?.phone_number || authData.user.user_metadata?.phone_number || '',
+            role: (profile?.role as any) || 'USER',
+            provider: 'CREDENTIALS',
+            avatar:
+              profile?.avatar_url ||
+              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
+            createdAt: authData.user.created_at || new Date().toISOString(),
+          }
+
+          saveUserToStorage(loggedUser)
+          setIsAuthModalOpen(false)
+          return { success: true, isAdmin: loggedUser.role === 'ADMIN' }
+        }
+
+        if (authError) {
+          return { success: false, error: authError.message }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Lỗi Supabase signIn:', err)
+    }
+
+    // Mock fallback login nếu là tài khoản demo hoặc offline
     const user: AuthUser = {
       id: `usr-${Date.now()}`,
       name: cleanUser.includes('@') ? cleanUser.split('@')[0] : cleanUser,
@@ -246,9 +343,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  // 6. Logout
-  const logout = () => {
+  // 6. Update Profile (Đồng bộ lên public.profiles nếu đã đăng nhập Supabase)
+  const updateProfile = async (updatedData: Partial<AuthUser>): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser) return { success: false, error: 'Chưa đăng nhập' }
+
+    const updatedUser: AuthUser = {
+      ...currentUser,
+      ...updatedData,
+      id: currentUser.id,
+      role: currentUser.role,
+    }
+
+    try {
+      const supabase = createClient()
+      if (currentUser.id && currentUser.id.length > 20) {
+        await supabase
+          .from('profiles')
+          .update({
+            name: updatedUser.name,
+            phone_number: updatedUser.phoneNumber,
+            avatar_url: updatedUser.avatar,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentUser.id)
+      }
+    } catch (err) {
+      console.warn('Lỗi update profile lên Supabase:', err)
+    }
+
+    saveUserToStorage(updatedUser)
+    return { success: true }
+  }
+
+  // 7. Logout
+  const logout = async () => {
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.warn('Lỗi signOut Supabase:', err)
+    }
     saveUserToStorage(null)
+    setIsProfileModalOpen(false)
   }
 
   const logoutAdmin = () => {
@@ -264,6 +400,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthModalOpen,
         authModalMode,
         setAuthModalMode,
+        isProfileModalOpen,
+        setIsProfileModalOpen,
+        updateProfile,
         loginWithGoogle,
         loginWithApple,
         loginWithFacebook,

@@ -28,7 +28,7 @@ import { ViewModeSwitcher } from './ViewModeSwitcher'
 export function MarketplaceHeader() {
   const { cartCount, setIsCartDrawerOpen, searchQuery, setSearchQuery } = useMarketplace()
   const { viewMode, apiKey, setApiKey, modelName, setModelName, resetDatabaseToDefault, showToast } = useSecurityOrder()
-  const { currentUser, logout, setIsAuthModalOpen, setAuthModalMode } = useAuth()
+  const { currentUser, logout, setIsAuthModalOpen, setAuthModalMode, setIsProfileModalOpen } = useAuth()
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false)
@@ -163,20 +163,35 @@ export function MarketplaceHeader() {
 
             {/* User Account Button */}
             {currentUser ? (
-              <div className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-1.5 text-xs font-bold text-white border border-white/20">
-                <img
-                  src={
-                    currentUser.avatar ||
-                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80'
-                  }
-                  alt={currentUser.name}
-                  className="size-6 rounded-full object-cover border border-white/40"
-                />
-                <span className="hidden lg:inline max-w-[110px] truncate">{currentUser.name}</span>
+              <div className="flex items-center gap-1.5 rounded-xl bg-white/15 p-1 text-xs font-bold text-white border border-white/20 shadow-inner">
                 <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/20 transition active:scale-95 text-left group"
+                  title="Xem & Chỉnh sửa hồ sơ cá nhân / Lịch sử đơn hàng"
+                >
+                  <img
+                    src={
+                      currentUser.avatar ||
+                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80'
+                    }
+                    alt={currentUser.name}
+                    className="size-6 rounded-full object-cover border border-white/40 ring-1 ring-white/20 shadow-sm group-hover:scale-105 transition"
+                  />
+                  <div className="flex flex-col">
+                    <span className="hidden lg:inline max-w-[105px] truncate font-semibold group-hover:text-amber-200 transition">
+                      {currentUser.name}
+                    </span>
+                    <span className="hidden lg:inline text-[9px] text-amber-200/80 font-normal">
+                      Hồ sơ &amp; Đơn hàng
+                    </span>
+                  </div>
+                </button>
+                <button
+                  type="button"
                   onClick={logout}
                   title="Đăng xuất"
-                  className="ml-1 text-orange-200 hover:text-white p-0.5 rounded hover:bg-white/10"
+                  className="text-orange-200 hover:text-white p-1.5 rounded-lg hover:bg-white/15 transition active:scale-95"
                 >
                   <LogOut className="size-3.5" />
                 </button>
