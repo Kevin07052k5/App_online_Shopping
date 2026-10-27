@@ -11,17 +11,18 @@ interface AuthContextType {
   setIsAuthModalOpen: (open: boolean) => void
   authModalMode: 'LOGIN' | 'REGISTER'
   setAuthModalMode: (mode: 'LOGIN' | 'REGISTER') => void
-  loginWithGoogle: (customAccount?: { name: string; email: string; avatar?: string; phoneNumber?: string }) => Promise<void>
-  loginWithApple: (customAccount?: { name: string; email: string; avatar?: string; phoneNumber?: string }) => Promise<void>
-  loginWithFacebook: (customAccount?: { name: string; email: string; avatar?: string; phoneNumber?: string }) => Promise<void>
-  loginWithTwitter: (customAccount?: { name: string; email: string; avatar?: string; phoneNumber?: string }) => Promise<void>
+  loginWithOAuth: (provider: 'google' | 'apple' | 'facebook' | 'twitter') => Promise<{ success: boolean; error?: string }>
+  loginWithGoogle: (customAccount?: { name?: string; email?: string; avatar?: string; phoneNumber?: string }) => Promise<{ success: boolean; error?: string }>
+  loginWithApple: (customAccount?: { name?: string; email?: string; avatar?: string; phoneNumber?: string }) => Promise<{ success: boolean; error?: string }>
+  loginWithFacebook: (customAccount?: { name?: string; email?: string; avatar?: string; phoneNumber?: string }) => Promise<{ success: boolean; error?: string }>
+  loginWithTwitter: (customAccount?: { name?: string; email?: string; avatar?: string; phoneNumber?: string }) => Promise<{ success: boolean; error?: string }>
   registerWithCredentials: (data: RegisterFormData) => Promise<{ success: boolean; error?: string }>
   loginWithCredentials: (emailOrUsername: string, pass: string) => Promise<{ success: boolean; isAdmin?: boolean; error?: string }>
   loginAdmin: (username: string, pass: string) => { success: boolean; error?: string }
   isProfileModalOpen: boolean
   setIsProfileModalOpen: (open: boolean) => void
   updateProfile: (updatedData: Partial<AuthUser>) => Promise<{ success: boolean; error?: string }>
-  logout: () => void
+  logout: () => Promise<void>
   logoutAdmin: () => void
 }
 
@@ -33,25 +34,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false)
   const [authModalMode, setAuthModalMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN')
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
-
-  // Load auth state from localStorage on client
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('GROUP9_CURRENT_USER')
-      if (savedUser) {
-        try {
-          setCurrentUser(JSON.parse(savedUser))
-        } catch (e) {
-          console.error('Failed to parse saved user:', e)
-        }
-      }
-
-      const savedAdminAuth = localStorage.getItem('GROUP9_ADMIN_AUTH')
-      if (savedAdminAuth === 'true') {
-        setIsAdminAuthenticated(true)
-      }
-    }
-  }, [])
 
   // Sync to localStorage
   const saveUserToStorage = (user: AuthUser | null) => {
@@ -76,96 +58,291 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  // 1. Login with Google (OAuth 2.0 / Google Identity)
+  // Đồng bộ thông tin người dùng từ Supabase session
+  const syncUserFromSupabase = async (sessionUser: any) => {
+    if (!sessionUser) return
+    const metadata = sessionUser.user_metadata || {}
+    const cleanEmail = sessionUser.email || metadata.email || ''
+    const cleanName =
+      metadata.full_name || metadata.name || cleanEmail.split('@')[0] || 'Khách hàng'
+    const avatar =
+      metadata.avatar_url ||
+      metadata.picture ||
+      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80'
+    const rawProvider = (sessionUser.app_metadata?.provider || 'GOOGLE').toUpperCase()
+    const provider = ['GOOGLE', 'APPLE', 'FACEBOOK', 'TWITTER', 'CREDENTIALS'].includes(rawProvider)
+      ? rawProvider
+      : 'GOOGLE'
+
+    let phone = metadata.phone_number || metadata.phone || ''
+    let role: 'USER' | 'ADMIN' = 'USER'
+
+    try {
+      const supabase = createClient()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', sessionUser.id)
+        .maybeSingle()
+
+      if (profile) {
+        phone = profile.phone_number || phone
+        role = (profile.role as any) || 'USER'
+      } else {
+        await supabase.from('profiles').upsert({
+          id: sessionUser.id,
+          email: cleanEmail,
+          name: cleanName,
+          phone_number: phone,
+          role: 'USER',
+          provider: provider as any,
+          avatar_url: avatar,
+        })
+      }
+    } catch (err) {
+      console.warn('Sync profile error:', err)
+    }
+
+    const authUser: AuthUser = {
+      id: sessionUser.id,
+      name: cleanName,
+      email: cleanEmail,
+      phoneNumber: phone,
+      role: role,
+      provider: provider as any,
+      avatar: avatar,
+      createdAt: sessionUser.created_at || new Date().toISOString(),
+    }
+
+    saveUserToStorage(authUser)
+    setIsAuthModalOpen(false)
+  }
+
+  // Khởi tạo state và lắng nghe sự kiện đăng nhập thực tế từ Supabase Auth
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('GROUP9_CURRENT_USER')
+      if (savedUser) {
+        try {
+          setCurrentUser(JSON.parse(savedUser))
+        } catch (e) {
+          console.error('Failed to parse saved user:', e)
+        }
+      }
+
+      const savedAdminAuth = localStorage.getItem('GROUP9_ADMIN_AUTH')
+      if (savedAdminAuth === 'true') {
+        setIsAdminAuthenticated(true)
+      }
+    }
+
+    try {
+      const supabase = createClient()
+
+      // Lấy phiên đăng nhập hiện tại nếu có
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          syncUserFromSupabase(session.user)
+        }
+      })
+
+      // Lắng nghe sự kiện đăng nhập qua OAuth / đăng xuất thực tế
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session?.user) {
+          await syncUserFromSupabase(session.user)
+        } else if (event === 'SIGNED_OUT') {
+          const savedAdmin = localStorage.getItem('GROUP9_ADMIN_AUTH')
+          if (savedAdmin !== 'true') {
+            setCurrentUser(null)
+            localStorage.removeItem('GROUP9_CURRENT_USER')
+          }
+        }
+      })
+
+      return () => {
+        subscription.unsubscribe()
+      }
+    } catch (e) {
+      console.warn('Supabase auth listener initialization error:', e)
+    }
+  }, [])
+
+  // Đăng nhập OAuth thật (Google, Apple, Facebook, Twitter) sử dụng tài khoản trên máy người dùng
+  const loginWithOAuth = async (
+    provider: 'google' | 'apple' | 'facebook' | 'twitter'
+  ): Promise<{ success: boolean; error?: string; code?: string }> => {
+    try {
+      const supabase = createClient()
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const redirectTo = `${origin}/auth/callback`
+
+      const options: {
+        redirectTo: string
+        queryParams?: Record<string, string>
+        skipBrowserRedirect: boolean
+      } = {
+        redirectTo,
+        skipBrowserRedirect: true,
+      }
+
+      // Đối với Google: thêm prompt select_account để luôn hiển thị danh sách các tài khoản Google thực tế đang đăng nhập trên trình duyệt của máy khách hàng
+      if (provider === 'google') {
+        options.queryParams = {
+          access_type: 'offline',
+          prompt: 'select_account',
+        }
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options,
+      })
+
+      if (error) {
+        console.error(`Supabase OAuth ${provider} error:`, error)
+        return { success: false, error: error.message }
+      }
+
+      if (!data?.url) {
+        return { success: false, error: 'Không nhận được đường dẫn xác thực từ Supabase.' }
+      }
+
+      // Kiểm tra trước (Pre-flight probe) xem Provider đã được bật trên Supabase Dashboard chưa
+      // Tránh việc trình duyệt chuyển hướng người dùng tới trang lỗi JSON thô 400
+      try {
+        const probe = await fetch(data.url, { redirect: 'manual' })
+        if (probe.status === 400) {
+          const json = await probe.json().catch(() => null)
+          if (
+            json?.msg?.toLowerCase().includes('provider is not enabled') ||
+            json?.error_code === 'validation_failed'
+          ) {
+            return {
+              success: false,
+              code: 'PROVIDER_NOT_ENABLED',
+              error: `Cổng xác thực ${provider.toUpperCase()} chưa được bật trong Supabase Dashboard (Authentication > Providers > ${provider.toUpperCase()}).`,
+            }
+          }
+        }
+      } catch (probeErr) {
+        // Bỏ qua lỗi CORS probe để cho phép trình duyệt redirect bình thường
+      }
+
+      if (typeof window !== 'undefined') {
+        window.location.href = data.url
+      }
+
+      return { success: true }
+    } catch (err: any) {
+      console.error(`OAuth ${provider} exception:`, err)
+      return { success: false, error: err.message || `Lỗi đăng nhập ${provider}` }
+    }
+  }
+
   const loginWithGoogle = async (customAccount?: {
-    name: string
-    email: string
+    name?: string
+    email?: string
     avatar?: string
     phoneNumber?: string
   }) => {
-    const googleUser: AuthUser = {
-      id: `usr-gg-${Date.now()}`,
-      name: customAccount?.name || 'Khương Gia Phát',
-      email: customAccount?.email || 'khuonggiaphat7up@gmail.com',
-      phoneNumber: customAccount?.phoneNumber || '0908123456',
-      role: 'USER',
-      provider: 'GOOGLE',
-      avatar:
-        customAccount?.avatar ||
-        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
-      createdAt: new Date().toISOString(),
+    if (customAccount?.email) {
+      const googleUser: AuthUser = {
+        id: `usr-gg-${Date.now()}`,
+        name: customAccount.name || 'Người dùng Google',
+        email: customAccount.email,
+        phoneNumber: customAccount.phoneNumber || '0908123456',
+        role: 'USER',
+        provider: 'GOOGLE',
+        avatar:
+          customAccount.avatar ||
+          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
+        createdAt: new Date().toISOString(),
+      }
+      saveUserToStorage(googleUser)
+      setIsAuthModalOpen(false)
+      return { success: true }
     }
-    saveUserToStorage(googleUser)
-    setIsAuthModalOpen(false)
+    return loginWithOAuth('google')
   }
 
-  // 2. Login with Apple (Sign in with Apple)
   const loginWithApple = async (customAccount?: {
-    name: string
-    email: string
+    name?: string
+    email?: string
     avatar?: string
     phoneNumber?: string
   }) => {
-    const appleUser: AuthUser = {
-      id: `usr-apple-${Date.now()}`,
-      name: customAccount?.name || 'Khương Gia Phát',
-      email: customAccount?.email || 'khuonggiaphat7up@icloud.com',
-      phoneNumber: customAccount?.phoneNumber || '0977665544',
-      role: 'USER',
-      provider: 'APPLE',
-      avatar:
-        customAccount?.avatar ||
-        'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=160&q=80',
-      createdAt: new Date().toISOString(),
+    if (customAccount?.email) {
+      const appleUser: AuthUser = {
+        id: `usr-apple-${Date.now()}`,
+        name: customAccount.name || 'Người dùng Apple',
+        email: customAccount.email,
+        phoneNumber: customAccount.phoneNumber || '0977665544',
+        role: 'USER',
+        provider: 'APPLE',
+        avatar:
+          customAccount.avatar ||
+          'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=160&q=80',
+        createdAt: new Date().toISOString(),
+      }
+      saveUserToStorage(appleUser)
+      setIsAuthModalOpen(false)
+      return { success: true }
     }
-    saveUserToStorage(appleUser)
-    setIsAuthModalOpen(false)
+    return loginWithOAuth('apple')
   }
 
-  // 3. Login with Facebook
   const loginWithFacebook = async (customAccount?: {
-    name: string
-    email: string
+    name?: string
+    email?: string
     avatar?: string
     phoneNumber?: string
   }) => {
-    const fbUser: AuthUser = {
-      id: `usr-fb-${Date.now()}`,
-      name: customAccount?.name || 'Khương Gia Phát',
-      email: customAccount?.email || 'khuonggiaphat7up@gmail.com',
-      phoneNumber: customAccount?.phoneNumber || '0988112233',
-      role: 'USER',
-      provider: 'FACEBOOK',
-      avatar:
-        customAccount?.avatar ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&q=80',
-      createdAt: new Date().toISOString(),
+    if (customAccount?.email) {
+      const fbUser: AuthUser = {
+        id: `usr-fb-${Date.now()}`,
+        name: customAccount.name || 'Người dùng Facebook',
+        email: customAccount.email,
+        phoneNumber: customAccount.phoneNumber || '0988112233',
+        role: 'USER',
+        provider: 'FACEBOOK',
+        avatar:
+          customAccount.avatar ||
+          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&q=80',
+        createdAt: new Date().toISOString(),
+      }
+      saveUserToStorage(fbUser)
+      setIsAuthModalOpen(false)
+      return { success: true }
     }
-    saveUserToStorage(fbUser)
-    setIsAuthModalOpen(false)
+    return loginWithOAuth('facebook')
   }
 
-  // 4. Login with Twitter (X)
   const loginWithTwitter = async (customAccount?: {
-    name: string
-    email: string
+    name?: string
+    email?: string
     avatar?: string
     phoneNumber?: string
   }) => {
-    const twitterUser: AuthUser = {
-      id: `usr-x-${Date.now()}`,
-      name: customAccount?.name || 'Khương Gia Phát',
-      email: customAccount?.email || 'khuonggiaphat7up@x.com',
-      phoneNumber: customAccount?.phoneNumber || '0919887766',
-      role: 'USER',
-      provider: 'TWITTER',
-      avatar:
-        customAccount?.avatar ||
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-      createdAt: new Date().toISOString(),
+    if (customAccount?.email) {
+      const twitterUser: AuthUser = {
+        id: `usr-x-${Date.now()}`,
+        name: customAccount.name || 'Người dùng X',
+        email: customAccount.email,
+        phoneNumber: customAccount.phoneNumber || '0919887766',
+        role: 'USER',
+        provider: 'TWITTER',
+        avatar:
+          customAccount.avatar ||
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
+        createdAt: new Date().toISOString(),
+      }
+      saveUserToStorage(twitterUser)
+      setIsAuthModalOpen(false)
+      return { success: true }
     }
-    saveUserToStorage(twitterUser)
-    setIsAuthModalOpen(false)
+    return loginWithOAuth('twitter')
   }
 
   // 5. Register with Credentials (Connecting to Supabase Auth & public.profiles)
@@ -403,6 +580,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isProfileModalOpen,
         setIsProfileModalOpen,
         updateProfile,
+        loginWithOAuth,
         loginWithGoogle,
         loginWithApple,
         loginWithFacebook,
