@@ -75,6 +75,14 @@ export function UserProfileModal() {
       return
     }
 
+    if (phoneNumber.trim()) {
+      const cleanDigits = phoneNumber.replace(/\\D/g, '')
+      if (cleanDigits.length < 9 || cleanDigits.length > 11) {
+        showToast('WARNING', 'SĐT không hợp lệ', 'Số điện thoại nhận hàng phải gồm 9 đến 11 chữ số')
+        return
+      }
+    }
+
     setIsSaving(true)
     const res = await updateProfile({
       name: name.trim(),

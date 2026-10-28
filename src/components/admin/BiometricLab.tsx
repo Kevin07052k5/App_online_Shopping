@@ -62,6 +62,7 @@ export function BiometricLab() {
   const [isEnrolling, setIsEnrolling] = useState(false)
   const [enrollName, setEnrollName] = useState('')
   const [enrollRole, setEnrollRole] = useState<'ADMIN' | 'CUSTOMER'>('CUSTOMER')
+  const [isExtractingFace, setIsExtractingFace] = useState(false)
 
   // Live analysis state
   const [activeChallenge, setActiveChallenge] = useState<LivenessChallengeType>('BLINK')
@@ -447,7 +448,13 @@ export function BiometricLab() {
 
   // Handle Enrollment of current face
   const handleEnrollFace = async () => {
-    if (!enrollName.trim() || !canvasRef.current) return
+    if (!enrollName.trim()) {
+      alert('Vui lòng nhập tên chủ tài khoản trước khi chụp ảnh!')
+      return
+    }
+    if (!canvasRef.current || isExtractingFace) return
+
+    setIsExtractingFace(true)
     try {
       const emb = await extractFaceEmbedding(canvasRef.current)
       const newProf = enrollNewFaceProfile(enrollName.trim(), enrollRole, emb)
@@ -456,8 +463,11 @@ export function BiometricLab() {
       setSelectedTargetProfile(newProf)
       setIsEnrolling(false)
       setEnrollName('')
-    } catch (e) {
+    } catch (e: any) {
       console.error('Enrollment error:', e)
+      alert('Lỗi trích xuất khuôn mặt: ' + (e.message || 'Vui lòng đưa mặt vào trước camera'))
+    } finally {
+      setIsExtractingFace(false)
     }
   }
 
@@ -876,10 +886,18 @@ export function BiometricLab() {
                   </select>
                   <button
                     type="button"
+                    disabled={isExtractingFace || !enrollName.trim()}
                     onClick={handleEnrollFace}
-                    className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-3 py-1.5 font-bold text-slate-950 hover:from-cyan-400 hover:to-blue-500 transition"
+                    className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-3 py-1.5 font-bold text-slate-950 hover:from-cyan-400 hover:to-blue-500 transition disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    Chụp &amp; Lưu SFace
+                    {isExtractingFace ? (
+                      <>
+                        <span className="animate-spin inline-block size-3 border-2 border-slate-950 border-t-transparent rounded-full" />
+                        <span>Đang Trích Xuất...</span>
+                      </>
+                    ) : (
+                      <span>Chụp &amp; Lưu SFace</span>
+                    )}
                   </button>
                 </div>
               </div>

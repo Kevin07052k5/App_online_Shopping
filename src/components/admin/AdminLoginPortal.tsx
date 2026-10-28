@@ -29,12 +29,25 @@ export function AdminLoginPortal() {
   const [isLoading, setIsLoading] = useState(false)
   const [isFaceModalOpen, setIsFaceModalOpen] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!username.trim()) {
+      setError('Vui lòng nhập tên đăng nhập quản trị.')
+      return
+    }
+    if (!password) {
+      setError('Vui lòng nhập mật khẩu quản trị.')
+      return
+    }
+
+    if (isLoading) return
     setError('')
     setIsLoading(true)
 
-    const result = loginAdmin(username, password)
+    // Mô phỏng độ trễ xác thực an toàn & chống brute-force / spam click
+    await new Promise((resolve) => setTimeout(resolve, 400))
+
+    const result = loginAdmin(username.trim(), password)
     setIsLoading(false)
 
     if (result.success) {
@@ -171,8 +184,17 @@ export function AdminLoginPortal() {
             disabled={isLoading}
             className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 py-3.5 text-xs font-black text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-cyan-400 transition active:scale-98 disabled:opacity-50"
           >
-            <span>Đăng Nhập Bằng Mật Khẩu</span>
-            <ArrowRight className="size-4" />
+            {isLoading ? (
+              <>
+                <span className="animate-spin inline-block size-3.5 border-2 border-slate-950 border-t-transparent rounded-full" />
+                <span>Đang Xác Thực...</span>
+              </>
+            ) : (
+              <>
+                <span>Đăng Nhập Bằng Mật Khẩu</span>
+                <ArrowRight className="size-4" />
+              </>
+            )}
           </button>
 
           {/* Divider */}

@@ -6,9 +6,15 @@ import {
 import { CustomerPII, EncryptedOrder } from '@/src/types/order'
 import { bufferToHex, hexToBuffer } from '@/src/utils/helpers'
 
-const MASTER_VAULT_PASSPHRASE = 'MARKETPLACE_SHOPEE_LAZADA_MASTER_KEY_2026'
-const MASTER_PBKDF2_SALT = 'COMMERCE_SECURITY_SALT_992'
-const BLIND_INDEX_HMAC_SECRET = 'BLIND_INDEX_HMAC_SECRET_MARKETPLACE_2026'
+const MASTER_VAULT_PASSPHRASE =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MASTER_VAULT_PASSPHRASE) ||
+  'MARKETPLACE_SHOPEE_LAZADA_MASTER_KEY_2026'
+const MASTER_PBKDF2_SALT =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MASTER_PBKDF2_SALT) ||
+  'COMMERCE_SECURITY_SALT_992'
+const BLIND_INDEX_HMAC_SECRET =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BLIND_INDEX_SECRET) ||
+  'BLIND_INDEX_HMAC_SECRET_MARKETPLACE_2026'
 
 function getCrypto(): Crypto {
   if (typeof window !== 'undefined' && window.crypto?.subtle) {

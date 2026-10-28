@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Database,
   Search,
@@ -15,10 +15,68 @@ import {
   RotateCcw,
   CheckCircle,
   Copy,
+  AlertTriangle,
 } from 'lucide-react'
 import { useSecurityOrder } from '@/src/context/SecurityOrderContext'
-import { computeBlindIndex } from '@/src/services/webCryptoService'
+import { computeBlindIndex, decryptOrderPIIField } from '@/src/services/webCryptoService'
+import { CiphertextPackage } from '@/src/types/crypto'
 import { truncateHex, formatVND } from '@/src/utils/helpers'
+
+// Component giải mã trực tiếp thời gian thực bằng Web Crypto API (AES-256-GCM)
+function DecryptedField({
+  pkg,
+  fallback,
+  className,
+}: {
+  pkg?: CiphertextPackage
+  fallback?: string
+  className?: string
+}) {
+  const [text, setText] = useState<string | null>(null)
+  const [error, setError] = useState<boolean>(false)
+
+  useEffect(() => {
+    let isMounted = true
+    if (!pkg || !pkg.ciphertextHex) {
+      setText(fallback || '')
+      setError(false)
+      return
+    }
+
+    decryptOrderPIIField(pkg.ciphertextHex, pkg.ivHex, pkg.authTagHex)
+      .then((decrypted) => {
+        if (isMounted) {
+          setText(decrypted)
+          setError(false)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setText(null)
+          setError(true)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [pkg?.ciphertextHex, pkg?.ivHex, pkg?.authTagHex, fallback])
+
+  if (error) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-300 bg-rose-950/90 px-2 py-0.5 rounded border border-rose-500/70 animate-pulse font-sans">
+        <AlertTriangle className="size-3 text-rose-400" />
+        Lỗi GMAC (Bị can thiệp!)
+      </span>
+    )
+  }
+
+  if (text === null) {
+    return <span className="text-slate-500 text-xs italic font-sans">Đang giải mã AES-256...</span>
+  }
+
+  return <span className={className}>{text}</span>
+}
 
 export function EncryptedDbExplorer() {
   const {
@@ -28,6 +86,7 @@ export function EncryptedDbExplorer() {
     simulateTamper,
     restoreTampered,
     verifyIntegrity,
+    showToast,
   } = useSecurityOrder()
 
   const [searchPhone, setSearchPhone] = useState('')
@@ -47,6 +106,14 @@ export function EncryptedDbExplorer() {
     if (!searchPhone.trim()) {
       setComputedBlindIndex('')
       setMatchedOrderId(null)
+      showToast('WARNING', 'Ô tìm kiếm trống', 'Vui lòng nhập số điện thoại cần tra cứu.')
+      return
+    }
+
+    // Kiểm tra định dạng số điện thoại
+    const cleanDigits = searchPhone.replace(/\D/g, '')
+    if (cleanDigits.length < 9 || cleanDigits.length > 12) {
+      showToast('WARNING', 'Định dạng SĐT không hợp lệ', 'Vui lòng nhập số điện thoại gồm 9 - 11 chữ số để tạo mã Blind Index.')
       return
     }
 
@@ -195,9 +262,11 @@ export function EncryptedDbExplorer() {
                     {/* Tên */}
                     <td className="py-3.5 px-4">
                       {isAuthorizedDecrypted ? (
-                        <span className="text-emerald-400 font-sans font-bold">
-                          {ord.decryptedPII?.customerName || 'Nguyễn Văn An'}
-                        </span>
+                        <DecryptedField
+                          pkg={ord.encryptedPII.customerName}
+                          fallback={ord.decryptedPII?.customerName}
+                          className="text-emerald-400 font-sans font-bold"
+                        />
                       ) : (
                         <div title={ord.encryptedPII.customerName.ciphertextHex}>
                           <span className="text-purple-300 block truncate max-w-[130px]">
@@ -213,9 +282,11 @@ export function EncryptedDbExplorer() {
                     {/* SĐT & Blind Index */}
                     <td className="py-3.5 px-4">
                       {isAuthorizedDecrypted ? (
-                        <span className="text-emerald-400 font-bold block">
-                          {ord.decryptedPII?.phoneNumber || '0908123456'}
-                        </span>
+                        <DecryptedField
+                          pkg={ord.encryptedPII.phoneNumber}
+                          fallback={ord.decryptedPII?.phoneNumber}
+                          className="text-emerald-400 font-bold block"
+                        />
                       ) : (
                         <div>
                           <span className="text-purple-300 block truncate max-w-[130px]">
@@ -234,12 +305,13 @@ export function EncryptedDbExplorer() {
                     {/* Địa chỉ */}
                     <td className="py-3.5 px-4 max-w-[180px]">
                       {isAuthorizedDecrypted ? (
-                        <span
-                          className="text-slate-200 font-sans block truncate"
-                          title={ord.decryptedPII?.deliveryAddress}
-                        >
-                          {ord.decryptedPII?.deliveryAddress}
-                        </span>
+                        <div className="max-w-[200px] truncate" title={ord.decryptedPII?.deliveryAddress}>
+                          <DecryptedField
+                            pkg={ord.encryptedPII.deliveryAddress}
+                            fallback={ord.decryptedPII?.deliveryAddress}
+                            className="text-slate-200 font-sans block truncate"
+                          />
+                        </div>
                       ) : (
                         <div>
                           <span

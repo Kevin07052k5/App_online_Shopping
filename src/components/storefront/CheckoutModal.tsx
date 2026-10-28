@@ -52,6 +52,7 @@ export function CheckoutModal() {
     setSelectedOrderForCrypto,
     setIsCryptoVisualizerOpen,
     setViewMode,
+    showToast,
   } = useSecurityOrder()
 
   const { currentUser } = useAuth()
@@ -158,8 +159,41 @@ export function CheckoutModal() {
   // =========================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (cart.length === 0) return
+    if (cart.length === 0) {
+      showToast('WARNING', 'Giỏ hàng trống', 'Vui lòng chọn sản phẩm trước khi thanh toán.')
+      return
+    }
 
+    if (!formData.customerName.trim() || formData.customerName.trim().length < 2) {
+      showToast('WARNING', 'Thiếu thông tin', 'Vui lòng nhập họ và tên người nhận hợp lệ.')
+      return
+    }
+
+    const cleanPhone = formData.phoneNumber.replace(/\D/g, '')
+    if (cleanPhone.length < 9 || cleanPhone.length > 11) {
+      showToast('WARNING', 'SĐT không hợp lệ', 'Vui lòng nhập số điện thoại nhận hàng hợp lệ (9 - 11 chữ số).')
+      return
+    }
+
+    if (!formData.customerEmail.trim() || !formData.customerEmail.includes('@')) {
+      showToast('WARNING', 'Email không hợp lệ', 'Vui lòng nhập địa chỉ email hợp lệ để nhận hóa đơn.')
+      return
+    }
+
+    if (!formData.deliveryAddress.trim() || formData.deliveryAddress.trim().length < 5) {
+      showToast('WARNING', 'Địa chỉ quá ngắn', 'Vui lòng nhập địa chỉ giao hàng cụ thể (tối thiểu 5 ký tự).')
+      return
+    }
+
+    if (paymentMethod === 'CREDIT_CARD') {
+      const cleanCard = (formData.cardNumber || '').replace(/\D/g, '')
+      if (cleanCard.length < 15 || cleanCard.length > 19) {
+        showToast('WARNING', 'Số thẻ không hợp lệ', 'Vui lòng nhập số thẻ tín dụng hợp lệ (15 - 19 chữ số).')
+        return
+      }
+    }
+
+    if (isSubmitting) return
     setIsSubmitting(true)
     const tempOrderId = generateOrderId()
 

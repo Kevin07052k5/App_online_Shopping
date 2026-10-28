@@ -19,6 +19,7 @@ import {
   verifyOrderIntegrity,
 } from '@/src/services/webCryptoService'
 import { generateOrderId } from '@/src/utils/helpers'
+import { createClient } from '@/utils/supabase/client'
 
 interface SecurityOrderContextType {
   orders: EncryptedOrder[]
@@ -528,6 +529,42 @@ export const SecurityOrderProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     setOrders((prev) => [newOrder, ...prev])
+
+    // Đồng bộ lên bảng public.orders của CSDL Supabase (Lưu 100% bản mã, không có PII bản rõ)
+    try {
+      const supabase = createClient()
+      supabase
+        .from('orders')
+        .upsert({
+          id: newOrder.id,
+          order_code: newOrder.orderCode,
+          encrypted_pii: newOrder.encryptedPII as any,
+          phone_blind_index: newOrder.phoneBlindIndex,
+          record_checksum: newOrder.recordChecksum,
+          items: newOrder.items as any,
+          items_count: newOrder.itemsCount,
+          subtotal_amount: newOrder.subtotalAmount,
+          discount_amount: newOrder.discountAmount,
+          shipping_fee: newOrder.shippingFee,
+          final_total_amount: newOrder.finalTotalAmount,
+          applied_voucher_code: newOrder.appliedVoucherCode || null,
+          payment_method: newOrder.paymentMethod as any,
+          device_entropy: newOrder.deviceEntropy || null,
+          client_ip: newOrder.clientIp || null,
+          checkout_velocity_sec: newOrder.checkoutVelocitySec,
+          ai_explanation: newOrder.aiExplanation as any,
+          fulfillment_status: newOrder.fulfillmentStatus as any,
+          is_tampered: false,
+          created_at: newOrder.createdAt,
+          updated_at: newOrder.createdAt,
+        })
+        .then(({ error }) => {
+          if (error) console.warn('Supabase orders sync info:', error.message)
+        })
+    } catch (dbErr) {
+      console.warn('Supabase orders table error:', dbErr)
+    }
+
     showToast(
       params.aiExplanation.decision === 'HOLD_REVIEW' ? 'DANGER' : 'SUCCESS',
       `Đơn hàng ${orderCode}`,
@@ -544,6 +581,12 @@ export const SecurityOrderProvider: React.FC<{ children: React.ReactNode }> = ({
     setOrders((prev) =>
       prev.map((ord) => (ord.id === orderId ? { ...ord, fulfillmentStatus: status } : ord))
     )
+
+    try {
+      const supabase = createClient()
+      supabase.from('orders').update({ fulfillment_status: status as any }).eq('id', orderId).then()
+    } catch {}
+
     if (target) {
       const labels: Record<FulfillmentStatus, string> = {
         PAID_APPROVED: 'Đã duyệt thanh toán',

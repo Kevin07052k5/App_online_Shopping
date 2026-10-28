@@ -48,7 +48,12 @@ export function CartDrawer() {
 
   const handleApplyVoucher = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!voucherInput.trim()) return
+    if (!voucherInput.trim()) {
+      const emptyFb = { success: false, message: 'Vui lòng nhập mã voucher trước khi áp dụng!' }
+      setVoucherFeedback(emptyFb)
+      showToast('WARNING', 'Voucher trống', emptyFb.message)
+      return
+    }
     const res = applyVoucher(voucherInput)
     setVoucherFeedback(res)
     if (res.success) {
