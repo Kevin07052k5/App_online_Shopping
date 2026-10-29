@@ -3,3 +3,9 @@ pmOnFail: ignore
 minimumReleaseAgeExclude:
   - '@next/*'
   - next
+
+onlyBuiltDependencies:
+  - protobufjs
+  - onnxruntime-web
+  - sharp
+  - '@next/swc-linux-x64-gnu'
