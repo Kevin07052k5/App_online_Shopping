@@ -35,16 +35,22 @@ export async function getSFaceSession(): Promise<any> {
 
   isModelLoading = true
   try {
+    const BASE_PATH =
+      (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BASE_PATH) ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/App_online_Shopping')
+        ? '/App_online_Shopping'
+        : '')
+
     if (!ortInstance) {
       // Dynamic import ONNX Runtime Web để an toàn cho SSR Next.js
       ortInstance = await import('onnxruntime-web')
-      ortInstance.env.wasm.wasmPaths = '/onnxruntime-web/'
+      ortInstance.env.wasm.wasmPaths = `${BASE_PATH}/onnxruntime-web/`
       ortInstance.env.wasm.numThreads = 1
       ortInstance.env.logLevel = 'error'
     }
 
     // Tải sface.onnx với cấu hình basic để tránh cảnh báo const-folding initializer
-    sfaceSession = await ortInstance.InferenceSession.create('/models/sface.onnx', {
+    sfaceSession = await ortInstance.InferenceSession.create(`${BASE_PATH}/models/sface.onnx`, {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'basic',
       logSeverityLevel: 3,
