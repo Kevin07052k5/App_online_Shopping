@@ -139,6 +139,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const supabase = createClient()
 
+      // Tự động đối soát authorization code nếu Supabase redirect về trang chủ
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search)
+        const code = urlParams.get('code')
+        if (code) {
+          supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+            if (data?.session?.user) {
+              syncUserFromSupabase(data.session.user)
+              window.history.replaceState({}, document.title, window.location.pathname)
+            } else if (error) {
+              console.warn('Code exchange from URL search params error:', error)
+            }
+          })
+        }
+      }
+
       // Lấy phiên đăng nhập hiện tại nếu có
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
