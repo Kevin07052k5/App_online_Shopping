@@ -347,21 +347,9 @@ export function CryptoVisualizerModal({
           </div>
 
           <div className="flex gap-2">
-            {onGoToAdmin && (
-              <button
-                onClick={() => {
-                  onClose()
-                  onGoToAdmin()
-                }}
-                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
-              >
-                <Database className="size-3.5" />
-                Xem trong CSDL Admin
-              </button>
-            )}
             <button
               onClick={onClose}
-              className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-bold text-white hover:bg-slate-700"
+              className="rounded-xl bg-slate-800 px-5 py-2 text-xs font-bold text-white hover:bg-slate-700 transition"
             >
               Hoàn Tất
             </button>

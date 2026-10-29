@@ -17,12 +17,10 @@ import {
   LogIn,
   LogOut,
   ShieldCheck,
-  Scan,
 } from 'lucide-react'
 import { useMarketplace } from '@/src/context/MarketplaceContext'
 import { useSecurityOrder } from '@/src/context/SecurityOrderContext'
 import { useAuth } from '@/src/context/AuthContext'
-import { FaceBiometricModal } from '@/src/components/biometric/FaceBiometricModal'
 import { ViewModeSwitcher } from './ViewModeSwitcher'
 
 export function MarketplaceHeader() {
@@ -31,7 +29,6 @@ export function MarketplaceHeader() {
   const { currentUser, logout, setIsAuthModalOpen, setAuthModalMode, setIsProfileModalOpen } = useAuth()
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false)
   const [tempKey, setTempKey] = useState(apiKey)
   const [tempModel, setTempModel] = useState(modelName)
   const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
@@ -210,16 +207,6 @@ export function MarketplaceHeader() {
               </button>
             )}
 
-            {/* SFace Biometric Shield Quick Access Button */}
-            <button
-              onClick={() => setIsBiometricModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-slate-900/60 hover:bg-slate-900/80 border border-cyan-400/50 px-3 py-2 text-xs font-bold text-cyan-200 transition shadow active:scale-95"
-              title="Quét &amp; Kiểm Thử Lớp Bảo Vệ Sinh Trắc Học Khuôn Mặt SFace"
-            >
-              <Scan className="size-4 text-cyan-300" />
-              <span className="hidden md:inline">SFace Shield</span>
-            </button>
-
             {/* Cart Button */}
             <button
               onClick={() => setIsCartDrawerOpen(true)}
@@ -362,31 +349,6 @@ export function MarketplaceHeader() {
           </div>
         </div>
       )}
-
-      {/* SFace Biometric Modal */}
-      <FaceBiometricModal
-        isOpen={isBiometricModalOpen}
-        title="Group 9 — SFace Biometric Shield"
-        subtitle="Quét &amp; kiểm thử lớp bảo vệ sinh trắc học khuôn mặt chống giả mạo"
-        targetRole={currentUser ? 'CUSTOMER' : 'CUSTOMER'}
-        onVerified={(res) => {
-          setIsBiometricModalOpen(false)
-          if (res.success) {
-            showToast(
-              'SUCCESS',
-              'Xác Thực Sinh Trắc Học Thành Công',
-              `Độ tương đồng khuôn mặt: ${(res.cosineSimilarity * 100).toFixed(1)}%. Độ sống động: ${res.livenessScore}%.`
-            )
-          } else {
-            showToast(
-              'DANGER',
-              'Từ Chối Xác Thực Khuôn Mặt',
-              res.details
-            )
-          }
-        }}
-        onCancel={() => setIsBiometricModalOpen(false)}
-      />
     </header>
   )
 }
