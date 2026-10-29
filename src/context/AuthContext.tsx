@@ -18,6 +18,7 @@ interface AuthContextType {
   loginWithTwitter: (customAccount?: { name?: string; email?: string; avatar?: string; phoneNumber?: string }) => Promise<{ success: boolean; error?: string }>
   registerWithCredentials: (data: RegisterFormData) => Promise<{ success: boolean; error?: string }>
   loginWithCredentials: (emailOrUsername: string, pass: string) => Promise<{ success: boolean; isAdmin?: boolean; error?: string }>
+  loginWithFaceId: (result: any) => { success: boolean; isAdmin?: boolean; error?: string }
   loginAdmin: (username: string, pass: string) => { success: boolean; error?: string }
   isProfileModalOpen: boolean
   setIsProfileModalOpen: (open: boolean) => void
@@ -487,6 +488,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, isAdmin: false }
   }
 
+
+  // 4b. Login with SFace Face ID
+  const loginWithFaceId = (result: any): { success: boolean; isAdmin?: boolean; error?: string } => {
+    if (!result?.success) {
+      return { success: false, error: result?.details || 'Xác thực sinh trắc học không thành công' };
+    }
+
+    const matchedProf = result.matchedProfile;
+    const profileName = matchedProf?.name || 'Chủ Tài Khoản (Face ID)';
+    const isAdmin = matchedProf?.role === 'ADMIN' || profileName.toLowerCase().includes('admin');
+
+    const faceUser: AuthUser = {
+      id: matchedProf?.id || ('usr-face-' + Date.now()),
+      name: profileName,
+      email: (profileName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'faceid') + '@group9.user',
+      phoneNumber: '0908123456',
+      role: isAdmin ? 'ADMIN' : 'USER',
+      provider: 'CREDENTIALS',
+      avatar:
+        matchedProf?.avatarUrl ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
+      createdAt: new Date().toISOString(),
+    };
+
+    saveUserToStorage(faceUser);
+    if (isAdmin) {
+      saveAdminAuthToStorage(true);
+    }
+    setIsAuthModalOpen(false);
+    return { success: true, isAdmin };
+  };
+
   // 5. Admin portal direct login (username: admin, password: admin)
   const loginAdmin = (username: string, pass: string): { success: boolean; error?: string } => {
     if (username.trim() === 'admin' && pass.trim() === 'admin') {
@@ -566,6 +599,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithTwitter,
         registerWithCredentials,
         loginWithCredentials,
+        loginWithFaceId,
         loginAdmin,
         logout,
         logoutAdmin,

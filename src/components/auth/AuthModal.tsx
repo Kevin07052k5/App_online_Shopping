@@ -17,6 +17,9 @@ import {
 import { useAuth } from '@/src/context/AuthContext'
 import { useSecurityOrder } from '@/src/context/SecurityOrderContext'
 import SocialAuthSection from './SocialAuthSection'
+import { FaceBiometricModal } from '@/src/components/biometric/FaceBiometricModal'
+import { BiometricVerificationResult } from '@/src/types/biometric'
+import { Scan } from 'lucide-react'
 
 export function AuthModal() {
   const {
@@ -26,6 +29,7 @@ export function AuthModal() {
     setAuthModalMode,
     registerWithCredentials,
     loginWithCredentials,
+    loginWithFaceId,
   } = useAuth()
 
   const { showToast } = useSecurityOrder()
@@ -45,6 +49,34 @@ export function AuthModal() {
   const [showPassword, setShowPassword] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  const [isFaceModalOpen, setIsFaceModalOpen] = useState(false)
+
+  const handleFaceVerified = (result: BiometricVerificationResult) => {
+    setIsFaceModalOpen(false)
+    if (result.success) {
+      const res = loginWithFaceId(result)
+      if (res.isAdmin) {
+        showToast(
+          'SUCCESS',
+          'Đăng nhập Quản Trị Viên (Face ID)',
+          `Chào mừng Quản trị viên! Độ khớp SFace: ${(result.cosineSimilarity * 100).toFixed(1)}%.`
+        )
+        if (typeof window !== 'undefined') {
+          window.location.href = '/admin'
+        }
+      } else {
+        showToast(
+          'SUCCESS',
+          'Đăng nhập Face ID thành công',
+          `Chào mừng ${result.matchedProfile?.name || 'bạn'}! Độ khớp SFace: ${(result.cosineSimilarity * 100).toFixed(1)}%.`
+        )
+      }
+    } else {
+      showToast('DANGER', 'Xác thực Face ID thất bại', result.details || 'Khuôn mặt không trùng khớp')
+    }
+  }
+
 
   if (!isAuthModalOpen) return null
 
@@ -182,6 +214,42 @@ export function AuthModal() {
               Đăng nhập nhanh bằng tài khoản mạng xã hội:
             </span>
             <SocialAuthSection onSuccess={handleClose} />
+
+          {/* SFace Face ID Biometric Login Option */}
+          {authModalMode === 'LOGIN' && (
+            <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/20 via-slate-900/60 to-blue-950/20 p-3 shadow-sm hover:border-cyan-400/60 transition group">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 group-hover:scale-105 transition">
+                    <Scan className="size-4.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-xs text-slate-800 dark:text-white">
+                        Đăng Nhập Bằng Face ID
+                      </span>
+                      <span className="rounded bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 px-1.5 py-0.5 text-[9px] font-mono font-bold">
+                        SFace ONNX
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Quét khuôn mặt qua camera hoặc tải ảnh chân dung
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFaceModalOpen(true)}
+                  className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 px-3.5 py-2 text-xs font-bold text-slate-950 shadow-md shadow-cyan-500/20 transition active:scale-95 whitespace-nowrap flex items-center gap-1"
+                >
+                  <span>Quét Mặt</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           </div>
 
           {/* Divider */}
@@ -425,6 +493,17 @@ export function AuthModal() {
       </div>
 
 
-    </div>
+    
+      {/* SFace Face ID Biometric Modal */}
+      <FaceBiometricModal
+        isOpen={isFaceModalOpen}
+        title="Group 9 Identity — SFace Face ID Login"
+        subtitle="Quét nhận diện khuôn mặt chính chủ qua camera hoặc tải ảnh chân dung"
+        targetRole="CUSTOMER"
+        onVerified={handleFaceVerified}
+        onCancel={() => setIsFaceModalOpen(false)}
+      />
+
+</div>
   )
 }
