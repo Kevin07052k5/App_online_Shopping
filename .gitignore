@@ -19,3 +19,5 @@ node_modules/
 .env.local
 build/
 dist/
+# Documentation local drafts
+docs/CHUONG_2_THIET_KE_HE_THONG.md
