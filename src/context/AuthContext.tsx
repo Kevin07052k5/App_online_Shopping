@@ -194,60 +194,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
       const redirectTo = `${origin}/auth/callback`
 
-      const options: {
-        redirectTo: string
-        queryParams?: Record<string, string>
-        skipBrowserRedirect: boolean
-      } = {
-        redirectTo,
-        skipBrowserRedirect: true,
-      }
-
-      // Đối với Google: thêm prompt select_account để luôn hiển thị danh sách các tài khoản Google thực tế đang đăng nhập trên trình duyệt của máy khách hàng
-      if (provider === 'google') {
-        options.queryParams = {
-          access_type: 'offline',
-          prompt: 'select_account',
-        }
-      }
-
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider,
-        options,
+        options: {
+          redirectTo,
+          queryParams:
+            provider === 'google'
+              ? {
+                  access_type: 'offline',
+                  prompt: 'select_account',
+                }
+              : undefined,
+        },
       })
 
       if (error) {
         console.error(`Supabase OAuth ${provider} error:`, error)
         return { success: false, error: error.message }
-      }
-
-      if (!data?.url) {
-        return { success: false, error: 'Không nhận được đường dẫn xác thực từ Supabase.' }
-      }
-
-      // Kiểm tra trước (Pre-flight probe) xem Provider đã được bật trên Supabase Dashboard chưa
-      // Tránh việc trình duyệt chuyển hướng người dùng tới trang lỗi JSON thô 400
-      try {
-        const probe = await fetch(data.url, { redirect: 'manual' })
-        if (probe.status === 400) {
-          const json = await probe.json().catch(() => null)
-          if (
-            json?.msg?.toLowerCase().includes('provider is not enabled') ||
-            json?.error_code === 'validation_failed'
-          ) {
-            return {
-              success: false,
-              code: 'PROVIDER_NOT_ENABLED',
-              error: `Cổng xác thực ${provider.toUpperCase()} chưa được bật trong Supabase Dashboard (Authentication > Providers > ${provider.toUpperCase()}).`,
-            }
-          }
-        }
-      } catch (probeErr) {
-        // Bỏ qua lỗi CORS probe để cho phép trình duyệt redirect bình thường
-      }
-
-      if (typeof window !== 'undefined') {
-        window.location.href = data.url
       }
 
       return { success: true }
