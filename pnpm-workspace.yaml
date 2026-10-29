@@ -4,8 +4,10 @@ minimumReleaseAgeExclude:
   - '@next/*'
   - next
 
-onlyBuiltDependencies:
-  - protobufjs
-  - onnxruntime-web
-  - sharp
-  - '@next/swc-linux-x64-gnu'
+allowBuilds:
+  protobufjs: true
+  onnxruntime-web: true
+  sharp: true
+  '@next/swc-linux-x64-gnu': true
+
+strictDepBuilds: false
