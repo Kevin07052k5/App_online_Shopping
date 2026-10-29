@@ -1,6 +1,6 @@
 import { AIExplanation, FraudEvaluationPayload } from '@/src/types/fraud'
 
-const SYSTEM_AUDIT_PROMPT = `Bạn là Chuyên gia Kiểm toán Gian lận TMĐT cấp cao của sàn Thương mại Điện tử (mô hình Shopee / Lazada). Hãy phân tích Transaction Payload của đơn hàng và trả về duy nhất một chuỗi JSON hợp lệ theo format:
+const SYSTEM_AUDIT_PROMPT = `Bạn là Chuyên gia Kiểm toán Gian lận TMĐT cấp cao của sàn Thương mại Điện tử (mô hình Shopee / Lazada). Hãy phân tích Transaction Payload của đơn hàng (bao gồm dữ liệu thiết bị, mạng, voucher, và kết quả xác thực sinh trắc học Face ID chính chủ) và trả về duy nhất một chuỗi JSON hợp lệ theo format:
 {
   "riskScore": <số nguyên từ 0 đến 100>,
   "riskLevel": <"LOW" hoặc "MEDIUM" hoặc "HIGH">,
@@ -8,6 +8,7 @@ const SYSTEM_AUDIT_PROMPT = `Bạn là Chuyên gia Kiểm toán Gian lận TMĐT
   "reasons": [<danh sách 2-4 lý do phân tích cụ thể bằng tiếng Việt>],
   "summary": "<lời giải thích ngắn gọn quyết định cho kiểm duyệt viên sàn>"
 }
+Chú ý: Nếu đơn hàng đã xác thực Face ID chính chủ thành công (biometricVerification.verified = true), đây là bằng chứng mạnh mẽ cho thấy chính chủ tài khoản đang thực hiện giao dịch, giúp giảm rủi ro chiếm quyền tài khoản (Account Takeover). Ngược lại nếu Face ID thất bại hoặc bị giả mạo, phải đánh giá HIGH RISK và HOLD_REVIEW.
 Không xuất hiện bất kỳ markdown, lời giải thích hay ký tự nào ngoài JSON.`
 
 /**
@@ -38,6 +39,36 @@ export function evaluateWithHeuristicEngine(
     payload.clientIp.includes('Datacenter') ||
     payload.clientIp.startsWith('194.') ||
     payload.clientIp.startsWith('185.')
+
+  // BIOMETRIC SECURITY GATE: Nếu xác thực sinh trắc học Face ID thất bại hoặc phát hiện giả mạo
+  if (
+    payload.biometricVerification &&
+    (!payload.biometricVerification.verified ||
+      payload.biometricVerification.status === 'MISMATCH' ||
+      payload.biometricVerification.status === 'SPOOF_DETECTED')
+  ) {
+    const riskScore = 96
+    reasons.push(
+      `CẢNH BÁO SINH TRẮC HỌC: Khuôn mặt trước camera không trùng khớp với chủ tài khoản đã đăng ký (Trạng thái: ${payload.biometricVerification.status}).`
+    )
+    reasons.push(
+      'Nghi vấn nghiêm trọng về chiếm quyền tài khoản (Account Takeover) hoặc người lạ cố tình đặt hàng trái phép.'
+    )
+    reasons.push(
+      'Hệ thống AI tự động chặn đơn hàng để bảo vệ tài sản và thông tin cá nhân của chủ sở hữu.'
+    )
+
+    return {
+      riskScore,
+      riskLevel: 'HIGH',
+      decision: 'HOLD_REVIEW',
+      reasons,
+      summary:
+        'CẢNH BÁO: Xác thực Face ID thất bại (Khuôn mặt không phải chính chủ). Đơn hàng đã bị giữ lại để kiểm duyệt an ninh.',
+      modelName: 'Heuristic-Engine-v3.0 (Smart Fallback)',
+      evaluatedAt: new Date().toISOString(),
+    }
+  }
 
   // SCENARIO 3: Bot Farm Voucher / Spam Attack / Exploitation (HIGH RISK: 88 - 98)
   if (isExploitVoucher || (isFastCheckout && isTempEmail) || (isFastCheckout && isHeadless)) {
@@ -109,6 +140,11 @@ export function evaluateWithHeuristicEngine(
 
   // SCENARIO 1: Legitimate Purchase (LOW RISK: 5 - 15)
   const riskScore = Math.floor(Math.random() * 8) + 7 // 7-14
+  if (payload.biometricVerification?.verified) {
+    reasons.push(
+      `Đã xác thực sinh trắc học Face ID chính chủ (${payload.biometricVerification.matchedProfileName || 'Khách hàng'}, độ khớp SFace ${Math.round(payload.biometricVerification.cosineSimilarity * 100)}%).`
+    )
+  }
   reasons.push('Hành vi người dùng tự nhiên, thời gian lướt xem hàng và thêm giỏ hợp lý.')
   reasons.push('Thông tin người nhận, số điện thoại và địa chỉ giao hàng đồng bộ, có độ tin cậy cao.')
   reasons.push('Phương thức thanh toán phù hợp, không phát hiện dấu hiệu gian lận voucher hay giả mạo thiết bị.')

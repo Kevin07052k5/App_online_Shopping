@@ -12,6 +12,14 @@ export interface AIExplanation {
   evaluatedAt: string
 }
 
+export interface BiometricVerificationTelemetry {
+  verified: boolean
+  status: 'MATCH' | 'MISMATCH' | 'SPOOF_DETECTED' | 'UNVERIFIED'
+  cosineSimilarity: number
+  livenessPassed: boolean
+  matchedProfileName?: string
+}
+
 export interface FraudEvaluationPayload {
   orderId: string
   totalAmount: number
@@ -24,4 +32,5 @@ export interface FraudEvaluationPayload {
   checkoutVelocitySec: number
   customerEmail: string
   shippingAddress: string
+  biometricVerification?: BiometricVerificationTelemetry
 }
