@@ -40,8 +40,8 @@ jobs:
         env:
           NODE_ENV: production
           NEXT_PUBLIC_BASE_PATH: "/App_online_Shopping"
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://iztuzmxcsiwcqppqtjnl.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_Ua5z7vWtiLKFm1wnR1BZQQ_v1XVr01N' }}
 
       - name: Prevent Jekyll from ignoring _next folder
         run: |

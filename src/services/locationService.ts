@@ -178,3 +178,4 @@ export async function detectRealCurrentLocation(): Promise<DetectedLocationResul
     source,
   }
 }
+
