@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import {
   X,
+  Crosshair,
+  Loader2,
   User,
   Mail,
   Phone,
@@ -30,6 +32,7 @@ import {
   GoogleMapAddressPickerModal,
   MapCoordinates,
 } from '@/src/components/common/GoogleMapAddressPickerModal'
+import { detectRealCurrentLocation } from '@/src/services/locationService'
 
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
@@ -52,14 +55,38 @@ export function UserProfileModal() {
   const [isBiometricScanOpen, setIsBiometricScanOpen] = useState(false)
   const [ownerFaceProfile, setOwnerFaceProfile] = useState<any>(null)
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false)
-  const [mapCoords, setMapCoords] = useState<MapCoordinates>({ lat: 10.801344, lng: 106.714365 })
+  const [mapCoords, setMapCoords] = useState<MapCoordinates>({ lat: 10.823, lng: 106.629 })
+  const [isLocatingNow, setIsLocatingNow] = useState(false)
+
+  // Định vị tức thời vị trí thực tế của người dùng
+  const handleAutoLocateCurrentAddress = async () => {
+    setIsLocatingNow(true)
+    try {
+      const res = await detectRealCurrentLocation()
+      if (res.success && res.address) {
+        setAddress(res.address)
+        setMapCoords(res.coords)
+        showToast(
+          'SUCCESS',
+          'Định vị thành công',
+          `Đã xác định vị trí thực tế của bạn: ${res.address}`
+        )
+      } else {
+        showToast('WARNING', 'Không thể định vị', res.error || 'Vui lòng cấp quyền truy cập vị trí')
+      }
+    } catch (e: any) {
+      showToast('DANGER', 'Lỗi định vị', 'Không thể lấy vị trí hiện tại của thiết bị')
+    } finally {
+      setIsLocatingNow(false)
+    }
+  }
 
   // Load user data into form
   useEffect(() => {
     if (currentUser) {
       setName(currentUser.name || '')
       setPhoneNumber(currentUser.phoneNumber || '')
-      setAddress(currentUser.address || '475A Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM')
+      setAddress(currentUser.address || '')
       setAvatar(currentUser.avatar || AVATAR_PRESETS[0])
     }
   }, [currentUser, isProfileModalOpen])
@@ -354,18 +381,35 @@ export function UserProfileModal() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <label className="block text-slate-700 dark:text-slate-300 font-bold">
                     Địa Chỉ Nhận Hàng Mặc Định
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsMapPickerOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-[#ee4d2d] bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition cursor-pointer shadow-2xs"
-                  >
-                    <MapPin className="size-3.5" />
-                    <span>Định Vị Google Maps</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleAutoLocateCurrentAddress}
+                      disabled={isLocatingNow}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+                      title="Định vị ngay lập tức vị trí thực tế của bạn qua GPS / Mạng Internet"
+                    >
+                      {isLocatingNow ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Crosshair className="size-3.5" />
+                      )}
+                      <span>🎯 Lấy Vị Trí Hiện Tại</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsMapPickerOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-[#ee4d2d] bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition cursor-pointer shadow-2xs"
+                    >
+                      <MapPin className="size-3.5" />
+                      <span>Mở Bản Đồ Google</span>
+                    </button>
+                  </div>
                 </div>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-2.5 size-4 text-slate-400" />
@@ -373,7 +417,7 @@ export function UserProfileModal() {
                     rows={2}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố..."
+                    placeholder="Chưa có địa chỉ. Bấm '🎯 Lấy Vị Trí Hiện Tại' hoặc 'Mở Bản Đồ Google' để định vị vị trí thực tế của bạn..."
                     className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-2 pl-9 pr-3 text-xs text-slate-900 dark:text-white focus:border-[#ee4d2d] focus:outline-none resize-none"
                   />
                 </div>

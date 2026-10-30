@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react'
 import {
   X,
   MapPin,
+  Crosshair,
+  Loader2,
   CreditCard,
   Banknote,
   QrCode,
@@ -36,6 +38,7 @@ import {
   GoogleMapAddressPickerModal,
   MapCoordinates,
 } from '@/src/components/common/GoogleMapAddressPickerModal'
+import { detectRealCurrentLocation } from '@/src/services/locationService'
 
 export function CheckoutModal() {
   const {
@@ -68,9 +71,29 @@ export function CheckoutModal() {
   const { currentUser, updateProfile } = useAuth()
   const [isMapModalOpen, setIsMapModalOpen] = useState(false)
   const [deliveryCoords, setDeliveryCoords] = useState<MapCoordinates>({
-    lat: 10.801344,
-    lng: 106.714365,
+    lat: 10.823,
+    lng: 106.629,
   })
+  const [isLocatingNow, setIsLocatingNow] = useState(false)
+
+  // Định vị tức thời vị trí thực tế của khách hàng
+  const handleAutoLocateCheckout = async () => {
+    setIsLocatingNow(true)
+    try {
+      const res = await detectRealCurrentLocation()
+      if (res.success && res.address) {
+        setFormData((prev) => ({ ...prev, deliveryAddress: res.address }))
+        setDeliveryCoords(res.coords)
+        showToast('SUCCESS', 'Định vị thành công', `Đã xác định vị trí thực tế của bạn: ${res.address}`)
+      } else {
+        showToast('WARNING', 'Không thể định vị', res.error || 'Vui lòng kiểm tra quyền truy cập vị trí')
+      }
+    } catch (e: any) {
+      showToast('DANGER', 'Lỗi định vị', 'Không thể lấy vị trí hiện tại của thiết bị')
+    } finally {
+      setIsLocatingNow(false)
+    }
+  }
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false)
   const [biometricResult, setBiometricResult] = useState<BiometricVerificationResult | null>(null)
@@ -80,7 +103,7 @@ export function CheckoutModal() {
   const [formData, setFormData] = useState<CustomerPII>({
     customerName: 'Nguyễn Văn An',
     phoneNumber: '0908123456',
-    deliveryAddress: '475A Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM',
+    deliveryAddress: currentUser?.address || '',
     customerEmail: 'an.nguyen@gmail.com',
     cardNumber: '9704229988776655',
   })
@@ -452,18 +475,35 @@ export function CheckoutModal() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
                   <label className="block font-semibold text-slate-700">
                     Địa chỉ giao hàng chi tiết <span className="text-rose-500">*</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsMapModalOpen(true)}
-                    className="flex items-center gap-1 text-[11px] font-bold text-[#ee4d2d] hover:text-[#d73211] bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-200 transition cursor-pointer"
-                  >
-                    <MapPin className="size-3 text-[#ee4d2d]" />
-                    <span>Chọn Trên Google Map</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleAutoLocateCheckout}
+                      disabled={isLocatingNow}
+                      className="flex items-center gap-1 text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-2.5 py-0.5 rounded-lg shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+                      title="Lấy vị trí thực tế của bạn qua GPS / IP mạng"
+                    >
+                      {isLocatingNow ? (
+                        <Loader2 className="size-3 animate-spin text-white" />
+                      ) : (
+                        <Crosshair className="size-3 text-white" />
+                      )}
+                      <span>🎯 Lấy Vị Trí Hiện Tại</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsMapModalOpen(true)}
+                      className="flex items-center gap-1 text-[11px] font-bold text-[#ee4d2d] hover:text-[#d73211] bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-200 transition cursor-pointer"
+                    >
+                      <MapPin className="size-3 text-[#ee4d2d]" />
+                      <span>Mở Bản Đồ Google</span>
+                    </button>
+                  </div>
                 </div>
                 <div className="relative">
                   <input
@@ -471,7 +511,7 @@ export function CheckoutModal() {
                     required
                     value={formData.deliveryAddress}
                     onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                    placeholder="Số nhà, tên đường, phường/xã, quận/huyện..."
+                    placeholder="Bấm '🎯 Lấy Vị Trí Hiện Tại' hoặc nhập số nhà, tên đường, phường/xã..."
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#ee4d2d] focus:outline-none pr-8"
                   />
                   <button
