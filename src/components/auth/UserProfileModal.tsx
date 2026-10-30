@@ -26,6 +26,10 @@ import { useAuth } from '@/src/context/AuthContext'
 import { useSecurityOrder } from '@/src/context/SecurityOrderContext'
 import { FaceBiometricModal } from '@/src/components/biometric/FaceBiometricModal'
 import { getOwnerProfile } from '@/src/services/sfaceService'
+import {
+  GoogleMapAddressPickerModal,
+  MapCoordinates,
+} from '@/src/components/common/GoogleMapAddressPickerModal'
 
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
@@ -47,6 +51,8 @@ export function UserProfileModal() {
   const [isSaving, setIsSaving] = useState(false)
   const [isBiometricScanOpen, setIsBiometricScanOpen] = useState(false)
   const [ownerFaceProfile, setOwnerFaceProfile] = useState<any>(null)
+  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false)
+  const [mapCoords, setMapCoords] = useState<MapCoordinates>({ lat: 10.801344, lng: 106.714365 })
 
   // Load user data into form
   useEffect(() => {
@@ -347,10 +353,20 @@ export function UserProfileModal() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
-                  Địa Chỉ Nhận Hàng Mặc Định
-                </label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold">
+                    Địa Chỉ Nhận Hàng Mặc Định
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsMapPickerOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-[#ee4d2d] bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/60 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition cursor-pointer shadow-2xs"
+                  >
+                    <MapPin className="size-3.5" />
+                    <span>Định Vị Google Maps</span>
+                  </button>
+                </div>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-2.5 size-4 text-slate-400" />
                   <textarea
@@ -361,6 +377,49 @@ export function UserProfileModal() {
                     className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-2 pl-9 pr-3 text-xs text-slate-900 dark:text-white focus:border-[#ee4d2d] focus:outline-none resize-none"
                   />
                 </div>
+
+                {/* Google Map Preview Card */}
+                {address && (
+                  <div className="p-3 rounded-2xl border border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/60 dark:bg-emerald-950/20 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-lg bg-emerald-500/20 p-1.5 text-emerald-600 dark:text-emerald-400">
+                        <MapPin className="size-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-emerald-800 dark:text-emerald-300 text-[11px]">
+                            Đã Tích Hợp Vị Trí Google Maps
+                          </span>
+                          <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                          Tọa độ: {mapCoords.lat.toFixed(4)}, {mapCoords.lng.toFixed(4)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsMapPickerOpen(true)}
+                        className="text-[11px] font-bold text-[#ee4d2d] hover:underline cursor-pointer"
+                      >
+                        Đổi Vị Trí
+                      </button>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          address
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                      >
+                        <span>Mở Bản Đồ</span>
+                        <ExternalLink className="size-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-3">
@@ -578,6 +637,20 @@ export function UserProfileModal() {
           setIsBiometricScanOpen(false)
           setOwnerFaceProfile(getOwnerProfile())
           showToast('SUCCESS', 'Xác thực khuôn mặt thành công', 'Hồ sơ SFace của bạn đã được cập nhật!')
+        }}
+      />
+
+      {/* Google Map Address Picker Modal */}
+      <GoogleMapAddressPickerModal
+        isOpen={isMapPickerOpen}
+        onClose={() => setIsMapPickerOpen(false)}
+        initialAddress={address}
+        initialCoords={mapCoords}
+        title="Định Vị Địa Chỉ Nhận Hàng Mặc Định (Google Maps)"
+        onSelectAddress={(selectedAddr, coords) => {
+          setAddress(selectedAddr)
+          if (coords) setMapCoords(coords)
+          showToast('SUCCESS', 'Đã cập nhật vị trí', 'Đã lấy địa chỉ từ Google Maps, bấm "Lưu Thay Đổi" để lưu!')
         }}
       />
     </div>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   X,
+  MapPin,
   CreditCard,
   Banknote,
   QrCode,
@@ -31,6 +32,10 @@ import { analyzeOrderFraud } from '@/src/services/geminiAiService'
 import { formatVND, generateOrderId } from '@/src/utils/helpers'
 import { FaceBiometricModal } from '@/src/components/biometric/FaceBiometricModal'
 import { BiometricVerificationResult } from '@/src/types/biometric'
+import {
+  GoogleMapAddressPickerModal,
+  MapCoordinates,
+} from '@/src/components/common/GoogleMapAddressPickerModal'
 
 export function CheckoutModal() {
   const {
@@ -60,7 +65,12 @@ export function CheckoutModal() {
     showToast,
   } = useSecurityOrder()
 
-  const { currentUser } = useAuth()
+  const { currentUser, updateProfile } = useAuth()
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false)
+  const [deliveryCoords, setDeliveryCoords] = useState<MapCoordinates>({
+    lat: 10.801344,
+    lng: 106.714365,
+  })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false)
   const [biometricResult, setBiometricResult] = useState<BiometricVerificationResult | null>(null)
@@ -83,6 +93,7 @@ export function CheckoutModal() {
         customerName: currentUser.name || prev.customerName,
         customerEmail: currentUser.email || prev.customerEmail,
         phoneNumber: currentUser.phoneNumber || prev.phoneNumber,
+        deliveryAddress: currentUser.address || prev.deliveryAddress,
       }))
     }
   }, [currentUser, isCheckoutModalOpen])
@@ -441,16 +452,37 @@ export function CheckoutModal() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Địa chỉ giao hàng chi tiết <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.deliveryAddress}
-                  onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#ee4d2d] focus:outline-none"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700">
+                    Địa chỉ giao hàng chi tiết <span className="text-rose-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsMapModalOpen(true)}
+                    className="flex items-center gap-1 text-[11px] font-bold text-[#ee4d2d] hover:text-[#d73211] bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-200 transition cursor-pointer"
+                  >
+                    <MapPin className="size-3 text-[#ee4d2d]" />
+                    <span>Chọn Trên Google Map</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={formData.deliveryAddress}
+                    onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
+                    placeholder="Số nhà, tên đường, phường/xã, quận/huyện..."
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs focus:border-[#ee4d2d] focus:outline-none pr-8"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsMapModalOpen(true)}
+                    className="absolute right-2.5 top-2 text-slate-400 hover:text-[#ee4d2d] transition cursor-pointer"
+                    title="Mở Google Maps chọn địa chỉ"
+                  >
+                    <MapPin className="size-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -708,6 +740,27 @@ export function CheckoutModal() {
           }
         }}
         onCancel={() => setIsBiometricModalOpen(false)}
+      />
+
+      {/* Modal Chọn Địa Chỉ Google Maps */}
+      <GoogleMapAddressPickerModal
+        isOpen={isMapModalOpen}
+        onClose={() => setIsMapModalOpen(false)}
+        initialAddress={formData.deliveryAddress}
+        initialCoords={deliveryCoords}
+        title="Chọn Vị Trí Giao Hàng Trên Google Maps"
+        showSaveAsDefaultOption={!!currentUser}
+        onSaveAsDefault={async (selectedAddr) => {
+          if (currentUser) {
+            await updateProfile({ address: selectedAddr })
+            showToast('SUCCESS', 'Đã lưu mặc định', 'Đã lưu địa chỉ này làm địa chỉ nhận hàng mặc định!')
+          }
+        }}
+        onSelectAddress={(selectedAddr, coords) => {
+          setFormData((prev) => ({ ...prev, deliveryAddress: selectedAddr }))
+          if (coords) setDeliveryCoords(coords)
+          showToast('SUCCESS', 'Đã định vị thành công', 'Địa chỉ giao hàng đã được cập nhật từ Google Maps!')
+        }}
       />
     </div>
   )

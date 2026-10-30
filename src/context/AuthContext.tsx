@@ -109,6 +109,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: cleanName,
       email: cleanEmail,
       phoneNumber: phone,
+      address:
+        currentUser?.address ||
+        (typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('GROUP9_CURRENT_USER') || '{}').address
+          : undefined) ||
+        '475A Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM',
       role: role,
       provider: provider as any,
       avatar: avatar,
