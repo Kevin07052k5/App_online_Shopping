@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import Link from 'next/link'
 import {
   Search,
   ShoppingCart,
@@ -31,28 +32,94 @@ export function MarketplaceHeader() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [tempKey, setTempKey] = useState(apiKey)
   const [tempModel, setTempModel] = useState(modelName)
+  const [availableModelsList, setAvailableModelsList] = useState<string[]>([])
   const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
   const [testMsg, setTestMsg] = useState('')
 
+  useEffect(() => {
+    if (isSettingsOpen) {
+      setTempKey(apiKey)
+      if (modelName === 'gemini-1.5-pro' || modelName === 'gemini-1.5-flash') {
+        setTempModel('gemini-2.5-flash')
+      } else {
+        setTempModel(modelName)
+      }
+      setTestState('idle')
+      setTestMsg('')
+    }
+  }, [isSettingsOpen, apiKey, modelName])
+
   const handleSaveSettings = () => {
+    const finalModel =
+      tempModel === 'gemini-1.5-pro' || tempModel === 'gemini-1.5-flash'
+        ? 'gemini-2.5-flash'
+        : tempModel
     setApiKey(tempKey.trim())
-    setModelName(tempModel)
+    setModelName(finalModel)
     setIsSettingsOpen(false)
   }
 
   const handleTestKey = async () => {
-    if (!tempKey.trim()) {
+    const key = tempKey.trim()
+    if (!key) {
       setTestState('error')
       setTestMsg('Vui lòng nhập API Key để kiểm tra!')
       return
     }
 
     setTestState('testing')
-    setTestMsg('Đang gửi truy vấn thử nghiệm đến Gemini API...')
+    setTestMsg('Đang tra cứu danh sách mô hình từ Google AI Studio cho API Key của bạn...')
 
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${tempModel}:generateContent?key=${tempKey.trim()}`,
+      // 1. Gọi ModelService.ListModels theo khuyến nghị chính thức của Google
+      const listRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`
+      )
+
+      if (!listRes.ok) {
+        const err = await listRes.json().catch(() => ({}))
+        const msg = err.error?.message || `HTTP ${listRes.status}`
+        setTestState('error')
+        setTestMsg(`Lỗi xác thực API Key (${listRes.status}): ${msg}`)
+        return
+      }
+
+      const listData = await listRes.json()
+      const rawModels: Array<{ name: string; supportedGenerationMethods?: string[] }> =
+        listData.models || []
+
+      // Lọc các model có hỗ trợ generateContent
+      const contentModels = rawModels
+        .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m) => m.name.replace(/^models\//, ''))
+
+      if (contentModels.length === 0) {
+        setTestState('error')
+        setTestMsg('API Key hợp lệ nhưng tài khoản chưa được kích hoạt mô hình sinh nội dung (generateContent).')
+        return
+      }
+
+      setAvailableModelsList(contentModels)
+
+      // Chọn model tốt nhất:
+      // Nếu tempModel có trong danh sách -> dùng tempModel
+      // Nếu không có -> chọn model ưu tiên: gemini-2.5-flash -> gemini-2.0-flash -> gemini-2.5-pro -> hoặc model đầu tiên
+      let activeModel = tempModel
+      if (!contentModels.includes(activeModel)) {
+        activeModel =
+          contentModels.find((m) => m.includes('2.5-flash')) ||
+          contentModels.find((m) => m.includes('2.0-flash')) ||
+          contentModels.find((m) => m.includes('flash')) ||
+          contentModels.find((m) => m.includes('pro')) ||
+          contentModels[0]
+        setTempModel(activeModel)
+        setModelName(activeModel)
+      }
+
+      // 2. Gửi thử nghiệm sinh nội dung thực tế với model đã chọn
+      setTestMsg(`Đang thử nghiệm phân tích với mô hình ${activeModel}...`)
+      const testRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${key}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -62,17 +129,20 @@ export function MarketplaceHeader() {
         }
       )
 
-      if (res.ok) {
+      if (testRes.ok) {
         setTestState('success')
-        setTestMsg('Kết nối Google Gemini thành công! Sẵn sàng phân tích đơn hàng trực tiếp.')
+        setTestMsg(
+          `Kết nối Google Gemini thành công! Đã tự động kích hoạt mô hình "${activeModel}" (${contentModels.length} mô hình khả dụng).`
+        )
       } else {
-        const err = await res.json().catch(() => ({}))
+        const err = await testRes.json().catch(() => ({}))
+        const msg = err.error?.message || `HTTP ${testRes.status}`
         setTestState('error')
-        setTestMsg(`Lỗi (${res.status}): ${err.error?.message || 'API Key không hợp lệ.'}`)
+        setTestMsg(`Lỗi khi gọi ${activeModel} (${testRes.status}): ${msg}`)
       }
     } catch (e: any) {
       setTestState('error')
-      setTestMsg(`Lỗi mạng: ${e.message}`)
+      setTestMsg(`Lỗi kết nối mạng: ${e.message}`)
     }
   }
 
@@ -91,14 +161,14 @@ export function MarketplaceHeader() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <a
+          <Link
             href="/admin"
             className="flex items-center gap-1 text-amber-200 hover:text-white transition font-bold"
-            title="Truy cập http://localhost:3000/admin"
+            title="Truy cập Kênh Quản Trị Hệ Thống (/admin)"
           >
             <ShieldCheck className="size-3.5 text-amber-300" />
             <span>Kênh Quản Trị (/admin)</span>
-          </a>
+          </Link>
           <span className="opacity-50">|</span>
           <button
             onClick={() => setIsSettingsOpen(true)}
@@ -279,10 +349,26 @@ export function MarketplaceHeader() {
                   onChange={(e) => setTempModel(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2 px-3 text-xs text-white focus:border-orange-500 focus:outline-none"
                 >
-                  <option value="gemini-1.5-flash">gemini-1.5-flash (Phản hồi nhanh dưới 1s)</option>
-                  <option value="gemini-2.0-flash">gemini-2.0-flash (Thế hệ mới nhất)</option>
-                  <option value="gemini-1.5-pro">gemini-1.5-pro (Phân tích chuyên sâu)</option>
+                  {availableModelsList.length > 0 ? (
+                    availableModelsList.map((m) => (
+                      <option key={m} value={m}>
+                        {m} {m.includes('flash') ? '(Nhanh / Khuyên dùng)' : m.includes('pro') ? '(Chuyên sâu)' : ''}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="gemini-2.5-flash">gemini-2.5-flash (Khuyên dùng - Nhanh, chuẩn xác &amp; mới nhất)</option>
+                      <option value="gemini-2.0-flash">gemini-2.0-flash (Phản hồi siêu tốc dưới 1s)</option>
+                      <option value="gemini-2.5-pro">gemini-2.5-pro (Phân tích suy luận chuyên sâu)</option>
+                      <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite (Siêu nhẹ &amp; tiết kiệm tài nguyên)</option>
+                    </>
+                  )}
                 </select>
+                {availableModelsList.length > 0 && (
+                  <p className="mt-1 text-[11px] text-emerald-400">
+                    ✓ Đã đồng bộ {availableModelsList.length} mô hình khả dụng từ API Key của bạn.
+                  </p>
+                )}
               </div>
 
               {testState !== 'idle' && (

@@ -4,6 +4,7 @@ const repoName = 'App_online_Shopping'
 
 const nextConfig = {
   output: 'export',
+  trailingSlash: true,
   basePath: isProd ? `/${repoName}` : '',
   assetPrefix: isProd ? `/${repoName}/` : '',
   typescript: {

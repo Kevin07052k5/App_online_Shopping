@@ -131,7 +131,7 @@ const INITIAL_ORDERS_SEED: EncryptedOrder[] = [
         'Áp voucher Freeship đúng hạn mức',
       ],
       summary: 'Giao dịch khách hàng cá nhân an toàn. Tự động thông qua.',
-      modelName: 'gemini-1.5-flash',
+      modelName: 'gemini-2.5-flash',
       evaluatedAt: '2026-10-13T14:15:23.000Z',
     },
     decryptedPII: {
@@ -203,7 +203,7 @@ const INITIAL_ORDERS_SEED: EncryptedOrder[] = [
         'Thiết bị di động iPhone chính chủ',
       ],
       summary: 'Đã thanh toán trước 100%. Người bán đang bọc chống sốc đóng gói.',
-      modelName: 'gemini-1.5-flash',
+      modelName: 'gemini-2.5-flash',
       evaluatedAt: '2026-10-13T15:20:48.000Z',
     },
     decryptedPII: {
@@ -275,7 +275,7 @@ const INITIAL_ORDERS_SEED: EncryptedOrder[] = [
         'Phương thức thanh toán COD hợp lệ',
       ],
       summary: 'Đã bàn giao cho đơn vị vận chuyển SPX Express giao hỏa tốc.',
-      modelName: 'gemini-1.5-flash',
+      modelName: 'gemini-2.5-flash',
       evaluatedAt: '2026-10-13T16:40:12.000Z',
     },
     decryptedPII: {
@@ -345,7 +345,7 @@ const INITIAL_ORDERS_SEED: EncryptedOrder[] = [
         'Dấu vân tay Headless Chrome xuất phát từ dải IP Proxy nước ngoài',
       ],
       summary: 'Tấn công Botnet đầu cơ mã giảm giá & thử thẻ tín dụng đánh cắp. Đã cách ly đơn hàng.',
-      modelName: 'gemini-1.5-flash',
+      modelName: 'gemini-2.5-flash',
       evaluatedAt: '2026-10-13T17:10:08.000Z',
     },
     decryptedPII: {
@@ -362,7 +362,7 @@ export const SecurityOrderProvider: React.FC<{ children: React.ReactNode }> = ({
   const [orders, setOrders] = useState<EncryptedOrder[]>(INITIAL_ORDERS_SEED)
   const [viewMode, setViewMode] = useState<'STOREFRONT' | 'ADMIN'>('STOREFRONT')
   const [apiKey, setApiKey] = useState('')
-  const [modelName, setModelName] = useState('gemini-1.5-flash')
+  const [modelName, setModelName] = useState('gemini-2.5-flash')
   const [isAuthorizedDecrypted, setIsAuthorizedDecrypted] = useState(false)
 
   // Modals state
@@ -438,8 +438,14 @@ export const SecurityOrderProvider: React.FC<{ children: React.ReactNode }> = ({
     if (typeof window !== 'undefined') {
       const savedKey = localStorage.getItem('VITE_GEMINI_API_KEY') || localStorage.getItem('GEMINI_API_KEY') || ''
       if (savedKey) setApiKey(savedKey)
-      const savedModel = localStorage.getItem('GEMINI_MODEL_NAME') || 'gemini-1.5-flash'
-      setModelName(savedModel)
+      const savedModel = localStorage.getItem('GEMINI_MODEL_NAME') || 'gemini-2.5-flash'
+      // Tự động nâng cấp các model 1.5 cũ đã bị Google đóng sang Gemini 2.5 Flash
+      const normalizedModel =
+        savedModel === 'gemini-1.5-pro' || savedModel === 'gemini-1.5-flash' || savedModel === 'gemini-1.0-pro'
+          ? 'gemini-2.5-flash'
+          : savedModel
+      setModelName(normalizedModel)
+      localStorage.setItem('GEMINI_MODEL_NAME', normalizedModel)
     }
   }, [])
 

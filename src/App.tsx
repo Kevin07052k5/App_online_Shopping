@@ -3,7 +3,8 @@
 import React, { useState } from 'react'
 import { MarketplaceProvider, useMarketplace } from './context/MarketplaceContext'
 import { SecurityOrderProvider, useSecurityOrder } from './context/SecurityOrderContext'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { AdminLoginPortal } from './components/admin/AdminLoginPortal'
 import { MarketplaceHeader } from './components/layout/MarketplaceHeader'
 import { BannerCarousel } from './components/storefront/BannerCarousel'
 import { CategoryGrid } from './components/storefront/CategoryGrid'
@@ -27,6 +28,7 @@ import { Sparkles, Shield, ShoppingBag, Flame, Zap } from 'lucide-react'
 function MainContent() {
   const { products, selectedCategory, searchQuery } = useMarketplace()
   const { viewMode, toast, hideToast } = useSecurityOrder()
+  const { isAdminAuthenticated } = useAuth()
   const [adminTab, setAdminTab] = useState<AdminTab>('DASHBOARD')
 
   // Filter products by category and search
@@ -93,8 +95,13 @@ function MainContent() {
           <CheckoutModal />
           <OtpVerificationModal />
         </main>
+      ) : !isAdminAuthenticated ? (
+        /* YÊU CẦU ĐĂNG NHẬP NẾU CHƯA XÁC THỰC ADMIN */
+        <main className="flex-1">
+          <AdminLoginPortal />
+        </main>
       ) : (
-        /* ADMIN OPERATIONS & SECURITY HUB */
+        /* ADMIN OPERATIONS & SECURITY HUB (CHỈ DÀNH CHO QUẢN TRỊ VIÊN ĐÃ ĐĂNG NHẬP) */
         <main className="flex-1 bg-[#0f172a] text-slate-100 py-6 px-4 sm:px-6 lg:px-8 w-full">
           <div className="mx-auto max-w-7xl space-y-6">
             {/* Admin 5-module Navigation Bar */}
@@ -141,7 +148,7 @@ function MainContent() {
             <span>•</span>
             <span>Blind Index HMAC-SHA256</span>
             <span>•</span>
-            <span>Google Gemini 1.5 Flash</span>
+            <span>Google Gemini 2.5 Flash / 2.0 Flash</span>
           </div>
         </div>
       </footer>

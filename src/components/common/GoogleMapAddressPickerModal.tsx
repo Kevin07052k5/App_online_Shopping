@@ -16,7 +16,7 @@ import {
   Building2,
   CheckCircle2,
   AlertCircle,
-  Radio,
+  HelpCircle,
 } from 'lucide-react'
 import {
   detectRealCurrentLocation,
@@ -39,42 +39,95 @@ export interface GoogleMapAddressPickerModalProps {
   title?: string
 }
 
-// Preset các địa điểm phổ biến tại Việt Nam để test nhanh / demo nếu cần
-const VIETNAM_PRESETS: Array<{
+// Danh sách các khu vực/quận huyện trọng điểm để chọn nhanh (hỗ trợ đắc lực khi máy tính không có GPS)
+const POPULAR_DISTRICTS: Array<{
   name: string
-  label: string
   address: string
   coords: MapCoordinates
 }> = [
+  // TP. Hồ Chí Minh
   {
-    name: 'Landmark 81',
-    label: 'Landmark 81, Vinhomes',
-    address: '720A Điện Biên Phủ, Phường 22, Quận Bình Thạnh, TP. Hồ Chí Minh',
-    coords: { lat: 10.795055, lng: 106.721862 },
+    name: 'Quận 1, TP.HCM',
+    address: 'Đường Lê Lợi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    coords: { lat: 10.7756, lng: 106.7004 },
   },
   {
-    name: 'Bến Thành',
-    label: 'Chợ Bến Thành, Quận 1',
-    address: 'Đường Lê Lợi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh',
-    coords: { lat: 10.772545, lng: 106.698028 },
+    name: 'Quận 3, TP.HCM',
+    address: 'Đường Nam Kỳ Khởi Nghĩa, Phường Võ Thị Sáu, Quận 3, TP. Hồ Chí Minh',
+    coords: { lat: 10.7844, lng: 106.6844 },
   },
   {
-    name: 'Hồ Hoàn Kiếm',
-    label: 'Hồ Hoàn Kiếm, Hà Nội',
-    address: 'Đinh Tiên Hoàng, Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội',
-    coords: { lat: 21.028511, lng: 105.854444 },
+    name: 'Quận 7, TP.HCM',
+    address: 'Đường Nguyễn Thị Thập, Phường Tân Phú, Quận 7, TP. Hồ Chí Minh',
+    coords: { lat: 10.734, lng: 106.7218 },
   },
   {
-    name: 'Cầu Rồng',
-    label: 'Cầu Rồng, Đà Nẵng',
-    address: 'Đường Nguyễn Văn Linh, Phước Ninh, Hải Châu, Đà Nẵng',
-    coords: { lat: 16.061081, lng: 108.223847 },
+    name: 'Bình Thạnh, TP.HCM',
+    address: 'Đường Bạch Đằng, Phường 14, Quận Bình Thạnh, TP. Hồ Chí Minh',
+    coords: { lat: 10.8013, lng: 106.7143 },
   },
   {
-    name: 'Bến Ninh Kiều',
-    label: 'Bến Ninh Kiều, Cần Thơ',
-    address: 'Đường Hai Bà Trưng, Tân An, Ninh Kiều, Cần Thơ',
-    coords: { lat: 10.033691, lng: 105.787654 },
+    name: 'TP. Thủ Đức, TP.HCM',
+    address: 'Đường Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP. Hồ Chí Minh',
+    coords: { lat: 10.8494, lng: 106.7537 },
+  },
+  {
+    name: 'Gò Vấp, TP.HCM',
+    address: 'Đường Quang Trung, Phường 10, Quận Gò Vấp, TP. Hồ Chí Minh',
+    coords: { lat: 10.8387, lng: 106.6653 },
+  },
+  {
+    name: 'Tân Bình, TP.HCM',
+    address: 'Đường Trường Chinh, Phường 13, Quận Tân Bình, TP. Hồ Chí Minh',
+    coords: { lat: 10.7984, lng: 106.6534 },
+  },
+  {
+    name: 'Quận 10, TP.HCM',
+    address: 'Đường 3 Tháng 2, Phường 12, Quận 10, TP. Hồ Chí Minh',
+    coords: { lat: 10.7679, lng: 106.6669 },
+  },
+  {
+    name: 'Bình Tân, TP.HCM',
+    address: 'Đường Kinh Dương Vương, Phường An Lạc, Quận Bình Tân, TP. Hồ Chí Minh',
+    coords: { lat: 10.7516, lng: 106.6025 },
+  },
+  // Hà Nội
+  {
+    name: 'Hoàn Kiếm, Hà Nội',
+    address: 'Đường Đinh Tiên Hoàng, Phường Hàng Trống, Quận Hoàn Kiếm, Hà Nội',
+    coords: { lat: 21.0285, lng: 105.8544 },
+  },
+  {
+    name: 'Cầu Giấy, Hà Nội',
+    address: 'Đường Cầu Giấy, Phường Dịch Vọng, Quận Cầu Giấy, Hà Nội',
+    coords: { lat: 21.0362, lng: 105.7906 },
+  },
+  {
+    name: 'Đống Đa, Hà Nội',
+    address: 'Đường Tôn Đức Thắng, Phường Hàng Bột, Quận Đống Đa, Hà Nội',
+    coords: { lat: 21.0181, lng: 105.8299 },
+  },
+  // Đà Nẵng
+  {
+    name: 'Hải Châu, Đà Nẵng',
+    address: 'Đường Bạch Đằng, Phường Hải Châu 1, Quận Hải Châu, Đà Nẵng',
+    coords: { lat: 16.0611, lng: 108.2238 },
+  },
+  {
+    name: 'Sơn Trà, Đà Nẵng',
+    address: 'Đường Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, Đà Nẵng',
+    coords: { lat: 16.0825, lng: 108.2435 },
+  },
+  // Cần Thơ & Bình Dương
+  {
+    name: 'Ninh Kiều, Cần Thơ',
+    address: 'Đường Hai Bà Trưng, Phường Tân An, Quận Ninh Kiều, Cần Thơ',
+    coords: { lat: 10.0337, lng: 105.7877 },
+  },
+  {
+    name: 'Thủ Dầu Một, Bình Dương',
+    address: 'Đường Yersin, Phường Phú Cường, TP. Thủ Dầu Một, Bình Dương',
+    coords: { lat: 10.9805, lng: 106.6518 },
   },
 ]
 
@@ -88,7 +141,7 @@ export function GoogleMapAddressPickerModal({
   initialCoords,
   showSaveAsDefaultOption = false,
   onSaveAsDefault,
-  title = 'Định Vị Vị Trí Giao Hàng Trên Google Maps',
+  title = 'Chọn Vị Trí Nhận Hàng Trên Google Maps',
 }: GoogleMapAddressPickerModalProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -96,7 +149,7 @@ export function GoogleMapAddressPickerModal({
   const tileLayerRef = useRef<any>(null)
 
   const [coords, setCoords] = useState<MapCoordinates>(
-    initialCoords || { lat: 10.823, lng: 106.629 }
+    initialCoords || { lat: 10.7756, lng: 106.7004 } // Mặc định trung tâm TP.HCM
   )
   const [address, setAddress] = useState<string>(initialAddress || '')
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -109,11 +162,10 @@ export function GoogleMapAddressPickerModal({
   const [isLeafletReady, setIsLeafletReady] = useState(false)
   const [saveAsDefault, setSaveAsDefault] = useState(false)
   const [isGpsLocating, setIsGpsLocating] = useState(false)
-  const [locationSource, setLocationSource] = useState<
-    'GPS_HARDWARE' | 'IP_NETWORK' | 'MANUAL'
+  const [locationMessage, setLocationMessage] = useState<string | null>(null)
+  const [locationType, setLocationType] = useState<
+    'GPS_SUCCESS' | 'IP_ESTIMATE' | 'MANUAL' | 'ERROR'
   >('MANUAL')
-  const [gpsMessage, setGpsMessage] = useState<string | null>(null)
-  const [gpsError, setGpsError] = useState<string | null>(null)
 
   // Tải thư viện Leaflet CSS & JS qua CDN động
   useEffect(() => {
@@ -212,41 +264,47 @@ export function GoogleMapAddressPickerModal({
     }
   }, [])
 
-  // HÀM ĐỊNH VỊ VỊ TRÍ HIỆN TẠI THỜI GIAN THỰC (GPS + IP FALLBACK)
-  const handleGetCurrentLocation = useCallback(async () => {
+  // HÀM QUÉT GPS / ĐỊNH VỊ THỜI GIAN THỰC
+  const handleScanLocation = useCallback(async () => {
     setIsGpsLocating(true)
-    setGpsError(null)
-    setGpsMessage(null)
+    setLocationMessage(null)
 
     try {
       const result = await detectRealCurrentLocation()
       if (result.success) {
         flyToCoords(result.coords, result.address)
-        setLocationSource(result.source)
         if (result.source === 'GPS_HARDWARE') {
-          setGpsMessage('Đã định vị thành công bằng GPS thiết bị thực tế')
+          setLocationType('GPS_SUCCESS')
+          setLocationMessage(
+            `Đã định vị chính xác qua GPS thiết bị (Độ sai số ~${result.accuracy || 15}m)`
+          )
         } else {
-          setGpsMessage('Đã định vị thành công qua vị trí mạng Internet thực tế')
+          setLocationType('IP_ESTIMATE')
+          setLocationMessage(
+            'Đang dùng vị trí ước tính theo trạm mạng. Bạn hãy gõ số nhà/tên đường vào ô tìm kiếm hoặc kéo ghim đỏ để chọn đúng vị trí của bạn!'
+          )
         }
       } else {
-        setGpsError(result.error || 'Không thể xác định vị trí hiện tại')
+        setLocationType('ERROR')
+        setLocationMessage(result.error || 'Chưa thể xác định vị trí tự động.')
       }
-    } catch (err: any) {
-      console.error('Lỗi định vị vị trí hiện tại:', err)
-      setGpsError('Không thể lấy vị trí hiện tại. Vui lòng cấp quyền hoặc kéo ghim trên bản đồ.')
+    } catch (err) {
+      setLocationType('ERROR')
+      setLocationMessage(
+        'Không thể lấy vị trí tự động. Bạn vui lòng gõ tên đường vào ô tìm kiếm hoặc chọn quận ở thanh bên dưới!'
+      )
     } finally {
       setIsGpsLocating(false)
     }
   }, [flyToCoords])
 
-  // Khởi tạo tọa độ hoặc TỰ ĐỘNG ĐỊNH VỊ THỰC TẾ khi mở modal
+  // Khởi tạo trạng thái ban đầu khi mở modal
   useEffect(() => {
     if (!isOpen) return
 
     setSearchQuery('')
     setSearchResults([])
-    setGpsError(null)
-    setGpsMessage(null)
+    setLocationMessage(null)
 
     if (initialAddress && initialAddress.trim() !== '') {
       setAddress(initialAddress)
@@ -254,10 +312,10 @@ export function GoogleMapAddressPickerModal({
         setCoords(initialCoords)
       }
     } else {
-      // Nếu chưa có địa chỉ nhập sẵn: TỰ ĐỘNG LẤY VỊ TRÍ HIỆN TẠI THỰC TẾ CỦA KHÁCH HÀNG!
-      handleGetCurrentLocation()
+      // Nếu chưa có địa chỉ nhập sẵn: quét định vị
+      handleScanLocation()
     }
-  }, [isOpen, initialAddress, initialCoords, handleGetCurrentLocation])
+  }, [isOpen, initialAddress, initialCoords, handleScanLocation])
 
   // Khởi tạo bản đồ Leaflet
   useEffect(() => {
@@ -308,13 +366,13 @@ export function GoogleMapAddressPickerModal({
       }).addTo(map)
       markerInstanceRef.current = marker
 
-      // Khi người dùng kéo thả ghim
+      // Khi người dùng kéo thả ghim đỏ
       marker.on('dragend', () => {
         const position = marker.getLatLng()
         const newCoords = { lat: position.lat, lng: position.lng }
         setCoords(newCoords)
-        setLocationSource('MANUAL')
-        setGpsMessage('Vị trí được chọn bằng kéo thả ghim')
+        setLocationType('MANUAL')
+        setLocationMessage('Đã cập nhật vị trí theo điểm kéo ghim đỏ')
         reverseGeocode(newCoords.lat, newCoords.lng)
       })
 
@@ -324,8 +382,8 @@ export function GoogleMapAddressPickerModal({
         marker.setLatLng([lat, lng])
         const newCoords = { lat, lng }
         setCoords(newCoords)
-        setLocationSource('MANUAL')
-        setGpsMessage('Vị trí được chọn bằng click chuột trên bản đồ')
+        setLocationType('MANUAL')
+        setLocationMessage('Đã cập nhật vị trí theo điểm bạn vừa bấm trên bản đồ')
         reverseGeocode(lat, lng)
       })
 
@@ -376,6 +434,10 @@ export function GoogleMapAddressPickerModal({
       )
       const data = await res.json()
       setSearchResults(data || [])
+      if (!data || data.length === 0) {
+        setLocationType('ERROR')
+        setLocationMessage('Không tìm thấy địa chỉ phù hợp. Bạn hãy thử gõ tên đường ngắn hơn.')
+      }
     } catch (err) {
       console.error('Lỗi tìm kiếm địa chỉ:', err)
       setSearchResults([])
@@ -394,8 +456,8 @@ export function GoogleMapAddressPickerModal({
     const lng = parseFloat(result.lon)
     const newCoords = { lat, lng }
     flyToCoords(newCoords, result.display_name)
-    setLocationSource('MANUAL')
-    setGpsMessage(`Đã chọn từ tìm kiếm: ${result.display_name.slice(0, 40)}...`)
+    setLocationType('MANUAL')
+    setLocationMessage(`Đã chọn: ${result.display_name}`)
     setSearchResults([])
     setSearchQuery('')
   }
@@ -419,7 +481,7 @@ export function GoogleMapAddressPickerModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[92vh] max-h-[820px] border border-slate-200 dark:border-slate-800">
         {/* Header Modal */}
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-5 py-3.5 bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 text-white shrink-0">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-5 py-3.5 bg-gradient-to-r from-[#ee4d2d] via-orange-500 to-amber-500 text-white shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="rounded-xl bg-white/20 p-2 backdrop-blur-sm">
               <MapPin className="size-5 text-white" />
@@ -428,11 +490,11 @@ export function GoogleMapAddressPickerModal({
               <h3 className="font-bold text-sm sm:text-base leading-tight flex items-center gap-2">
                 <span>{title}</span>
                 <span className="hidden sm:inline-flex rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-semibold text-white tracking-wide">
-                  Định Vị Thời Gian Thực
+                  Google Maps Tương Tác
                 </span>
               </h3>
               <p className="text-[11px] text-white/90">
-                Tự động lấy vị trí thực tế của bạn hoặc kéo ghim đỏ để chọn vị trí mong muốn
+                Gõ tìm kiếm số nhà, chọn quận huyện hoặc kéo ghim đỏ để chọn đúng vị trí của bạn
               </p>
             </div>
           </div>
@@ -456,7 +518,7 @@ export function GoogleMapAddressPickerModal({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Nhập tên đường, địa danh, tòa nhà cần tìm..."
+                  placeholder="Nhập số nhà, tên đường, tòa nhà (VD: 45 Lê Văn Sỹ, Landmark 81, Cầu Giấy...)"
                   className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 pl-9 pr-3 text-xs text-slate-900 dark:text-white focus:border-[#ee4d2d] focus:outline-none shadow-sm"
                 />
               </div>
@@ -464,7 +526,7 @@ export function GoogleMapAddressPickerModal({
               <button
                 type="submit"
                 disabled={isSearching}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#ee4d2d] hover:bg-[#d73211] text-white text-xs font-bold transition shadow-sm disabled:opacity-50 cursor-pointer shrink-0"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#ee4d2d] hover:bg-[#d73211] text-white text-xs font-bold transition shadow-sm disabled:opacity-50 cursor-pointer shrink-0 active:scale-95"
               >
                 {isSearching ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -474,20 +536,20 @@ export function GoogleMapAddressPickerModal({
                 <span>Tìm Kiếm</span>
               </button>
 
-              {/* NÚT LẤY VỊ TRÍ HIỆN TẠI THỰC TẾ */}
+              {/* NÚT QUÉT GPS THIẾT BỊ */}
               <button
                 type="button"
-                onClick={handleGetCurrentLocation}
+                onClick={handleScanLocation}
                 disabled={isGpsLocating}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0 active:scale-95 disabled:opacity-50"
-                title="Lấy vị trí thực tế của thiết bị / mạng Internet hiện tại"
+                title="Quét tín hiệu GPS thiết bị của bạn"
               >
                 {isGpsLocating ? (
                   <Loader2 className="size-3.5 animate-spin text-white" />
                 ) : (
                   <Crosshair className="size-3.5 text-white" />
                 )}
-                <span>🎯 Lấy Vị Trí Hiện Tại</span>
+                <span className="hidden sm:inline">Quét GPS Của Tôi</span>
               </button>
             </form>
 
@@ -518,24 +580,24 @@ export function GoogleMapAddressPickerModal({
             )}
           </div>
 
-          {/* Quick presets & Layer buttons */}
+          {/* Thanh chọn nhanh Quận / Huyện trọng điểm */}
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar max-w-full">
               <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0 flex items-center gap-1">
-                <Building2 className="size-3" /> Địa điểm khác:
+                <Building2 className="size-3" /> Chọn nhanh Quận/Khu vực:
               </span>
-              {VIETNAM_PRESETS.map((preset) => (
+              {POPULAR_DISTRICTS.map((item) => (
                 <button
-                  key={preset.name}
+                  key={item.name}
                   type="button"
                   onClick={() => {
-                    flyToCoords(preset.coords, preset.address)
-                    setLocationSource('MANUAL')
-                    setGpsMessage(`Đã chọn: ${preset.name}`)
+                    flyToCoords(item.coords, item.address)
+                    setLocationType('MANUAL')
+                    setLocationMessage(`Đã chuyển đến khu vực ${item.name}. Bạn có thể kéo ghim đến số nhà cụ thể.`)
                   }}
                   className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:border-[#ee4d2d] hover:text-[#ee4d2d] transition whitespace-nowrap cursor-pointer shadow-2xs"
                 >
-                  {preset.name}
+                  {item.name}
                 </button>
               ))}
             </div>
@@ -578,27 +640,36 @@ export function GoogleMapAddressPickerModal({
             </div>
           </div>
 
-          {/* Banner thông báo trạng thái định vị thực tế */}
-          {gpsMessage && (
-            <div className="flex items-center justify-between text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-900">
+          {/* Banner thông báo trạng thái định vị */}
+          {locationMessage && (
+            <div
+              className={`flex items-center justify-between text-[11px] px-3 py-1.5 rounded-xl border ${
+                locationType === 'GPS_SUCCESS'
+                  ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900'
+                  : locationType === 'IP_ESTIMATE'
+                  ? 'text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900'
+                  : locationType === 'ERROR'
+                  ? 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900'
+                  : 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900'
+              }`}
+            >
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
-                <span>{gpsMessage}</span>
+                {locationType === 'GPS_SUCCESS' ? (
+                  <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                ) : locationType === 'IP_ESTIMATE' ? (
+                  <HelpCircle className="size-3.5 text-amber-600 shrink-0" />
+                ) : (
+                  <MapPin className="size-3.5 text-blue-600 shrink-0" />
+                )}
+                <span>{locationMessage}</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 font-bold">
-                {locationSource === 'GPS_HARDWARE'
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold bg-white/70 dark:bg-black/40">
+                {locationType === 'GPS_SUCCESS'
                   ? '🛰️ GPS Thiết Bị'
-                  : locationSource === 'IP_NETWORK'
-                  ? '🌐 Mạng Internet'
+                  : locationType === 'IP_ESTIMATE'
+                  ? '🌐 Trạm Mạng (Ước tính)'
                   : '📍 Thủ Công'}
               </span>
-            </div>
-          )}
-
-          {gpsError && (
-            <div className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-2 rounded-xl border border-amber-200 dark:border-amber-900">
-              <AlertCircle className="size-3.5 shrink-0" />
-              <span>{gpsError}</span>
             </div>
           )}
         </div>
@@ -626,7 +697,7 @@ export function GoogleMapAddressPickerModal({
             </div>
           </div>
 
-          {/* Nút mở trực tiếp Google Maps */}
+          {/* Nút mở trực tiếp Google Maps ngoài đời */}
           <div className="absolute top-3 right-3 z-20">
             <a
               href={googleMapsExternalUrl}
@@ -640,8 +711,8 @@ export function GoogleMapAddressPickerModal({
           </div>
 
           <div className="absolute bottom-3 left-3 z-20 pointer-events-none hidden sm:block">
-            <div className="rounded-xl bg-slate-900/80 backdrop-blur-md px-3 py-1.5 text-[11px] text-white/90 shadow-md">
-              💡 Bấm chuột hoặc kéo ghim đỏ để điều chỉnh vị trí chính xác
+            <div className="rounded-xl bg-slate-900/85 backdrop-blur-md px-3 py-1.5 text-[11px] text-white/90 shadow-md">
+              💡 Bấm chuột vào vị trí bất kỳ hoặc kéo ghim đỏ để đặt đúng số nhà của bạn
             </div>
           </div>
         </div>
@@ -650,28 +721,29 @@ export function GoogleMapAddressPickerModal({
         <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 space-y-3 shrink-0">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex-1 w-full">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                  <MapPin className="size-3 text-[#ee4d2d]" /> Địa chỉ giao hàng đã định vị:
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <MapPin className="size-3 text-[#ee4d2d]" /> Địa chỉ giao hàng chi tiết:
                 </span>
                 {isReverseGeocoding && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-amber-500">
+                  <span className="inline-flex items-center gap-1 text-[10px] text-amber-500 font-semibold">
                     <Loader2 className="size-3 animate-spin" /> Đang cập nhật địa chỉ...
                   </span>
                 )}
                 {isGpsLocating && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-blue-500">
-                    <Loader2 className="size-3 animate-spin" /> Đang định vị thời gian thực...
+                  <span className="inline-flex items-center gap-1 text-[10px] text-blue-500 font-semibold">
+                    <Loader2 className="size-3 animate-spin" /> Đang quét GPS...
                   </span>
                 )}
               </div>
 
+              {/* Textarea cho phép chỉnh sửa trực tiếp số nhà, số tầng, ghi chú giao hàng */}
               <div className="relative">
                 <textarea
                   rows={2}
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Địa chỉ định vị sẽ hiển thị tại đây (hoặc nhập số nhà, tầng, phòng cụ thể)..."
+                  placeholder="Gõ số nhà, tên đường, hẻm, số phòng cụ thể tại đây..."
                   className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 text-xs font-medium text-slate-900 dark:text-white focus:border-[#ee4d2d] focus:outline-none resize-none shadow-2xs"
                 />
               </div>

@@ -161,13 +161,22 @@ export function evaluateWithHeuristicEngine(
   }
 }
 
+// Mapping các model cũ đã bị Google ngừng hoạt động (deprecated) sang thế hệ mới
+const DEPRECATED_MODEL_ALIASES: Record<string, string> = {
+  'gemini-1.5-pro': 'gemini-2.5-flash',
+  'gemini-1.5-pro-latest': 'gemini-2.5-pro',
+  'gemini-1.5-flash': 'gemini-2.5-flash',
+  'gemini-1.5-flash-latest': 'gemini-2.5-flash',
+  'gemini-1.0-pro': 'gemini-2.0-flash',
+}
+
 /**
  * Call Google Gemini API or smoothly fallback to heuristic rules
  */
 export async function analyzeOrderFraud(
   payload: FraudEvaluationPayload,
   apiKey?: string,
-  modelName: string = 'gemini-1.5-flash'
+  modelName: string = 'gemini-2.5-flash'
 ): Promise<AIExplanation> {
   const trimmedKey = apiKey?.trim()
 
@@ -177,16 +186,18 @@ export async function analyzeOrderFraud(
     return evaluateWithHeuristicEngine(payload)
   }
 
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${trimmedKey}`
+  // Tự động chuẩn hóa model name nếu người dùng vô tình cấu hình model 1.5 cũ đã bị Google đóng
+  let targetModel = DEPRECATED_MODEL_ALIASES[modelName] || modelName || 'gemini-2.5-flash'
 
+  const callGeminiEndpoint = async (model: string) => {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${trimmedKey}`
     const promptText = `${SYSTEM_AUDIT_PROMPT}\n\nTRANSACTION PAYLOAD:\n${JSON.stringify(
       payload,
       null,
       2
     )}`
 
-    const response = await fetch(endpoint, {
+    return fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -203,6 +214,34 @@ export async function analyzeOrderFraud(
         },
       }),
     })
+  }
+
+  try {
+    let response = await callGeminiEndpoint(targetModel)
+
+    // Nếu gặp lỗi 404 Not Found, tự động gọi ListModels để tìm model khả dụng của chính tài khoản đó
+    if (!response.ok && response.status === 404) {
+      console.warn(`Model ${targetModel} trả về 404, tự động tra cứu danh sách model được cấp phép cho API Key...`)
+      try {
+        const listRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${trimmedKey}`
+        )
+        if (listRes.ok) {
+          const listData = await listRes.json()
+          const validModel = listData.models
+            ?.find((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+            ?.name?.replace(/^models\//, '')
+
+          if (validModel && validModel !== targetModel) {
+            console.info(`Đã tự động chuyển đổi sang mô hình khả dụng: ${validModel}`)
+            targetModel = validModel
+            response = await callGeminiEndpoint(targetModel)
+          }
+        }
+      } catch (listErr) {
+        console.warn('Không thể tra cứu ListModels:', listErr)
+      }
+    }
 
     if (!response.ok) {
       console.warn('Gemini API call failed, falling back to Heuristic Engine:', response.statusText)
@@ -228,7 +267,7 @@ export async function analyzeOrderFraud(
       decision: parsed.decision || 'HOLD_REVIEW',
       reasons: Array.isArray(parsed.reasons) ? parsed.reasons : [parsed.summary || 'Phân tích AI'],
       summary: parsed.summary || 'Phân tích hoàn tất từ mô hình Gemini Live.',
-      modelName: `${modelName} (Google Gemini Live)`,
+      modelName: `${targetModel} (Google Gemini Live)`,
       evaluatedAt: new Date().toISOString(),
     }
   } catch (error) {

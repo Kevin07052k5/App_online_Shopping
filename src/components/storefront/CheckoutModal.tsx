@@ -84,12 +84,18 @@ export function CheckoutModal() {
       if (res.success && res.address) {
         setFormData((prev) => ({ ...prev, deliveryAddress: res.address }))
         setDeliveryCoords(res.coords)
-        showToast('SUCCESS', 'Định vị thành công', `Đã xác định vị trí thực tế của bạn: ${res.address}`)
+        if (res.source === 'GPS_HARDWARE') {
+          showToast('SUCCESS', 'Định vị GPS thành công', `Đã xác định vị trí GPS chính xác: ${res.address}`)
+        } else {
+          showToast('INFO', 'Khu vực mạng Internet', 'Đã chuyển đến khu vực của bạn. Vui lòng kiểm tra số nhà hoặc kéo ghim!')
+          setIsMapModalOpen(true)
+        }
       } else {
-        showToast('WARNING', 'Không thể định vị', res.error || 'Vui lòng kiểm tra quyền truy cập vị trí')
+        showToast('WARNING', 'Không có GPS', 'Vui lòng chọn địa chỉ trực tiếp trên bản đồ Google Maps!')
+        setIsMapModalOpen(true)
       }
     } catch (e: any) {
-      showToast('DANGER', 'Lỗi định vị', 'Không thể lấy vị trí hiện tại của thiết bị')
+      setIsMapModalOpen(true)
     } finally {
       setIsLocatingNow(false)
     }
@@ -129,6 +135,15 @@ export function CheckoutModal() {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/128.0'
   )
   const [checkoutVelocitySec, setCheckoutVelocitySec] = useState(42.5)
+  const [isUsingPreset, setIsUsingPreset] = useState(false)
+  const modalOpenedAtRef = React.useRef<number>(Date.now())
+
+  useEffect(() => {
+    if (isCheckoutModalOpen) {
+      modalOpenedAtRef.current = Date.now()
+      setIsUsingPreset(false)
+    }
+  }, [isCheckoutModalOpen])
 
   if (!isCheckoutModalOpen) return null
 
@@ -151,6 +166,7 @@ export function CheckoutModal() {
     setClientIp('113.161.45.12 (VNPT TP.HCM)')
     setDeviceEntropy('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/128.0')
     setCheckoutVelocitySec(42.5)
+    setIsUsingPreset(true)
     setBiometricResult(null)
   }
 
@@ -171,6 +187,7 @@ export function CheckoutModal() {
     setClientIp('185.220.101.5 (Proxy/Datacenter NL)')
     setDeviceEntropy('Mozilla/5.0 (X11; Ubuntu; Linux x86_64) Firefox/125.0')
     setCheckoutVelocitySec(8.2)
+    setIsUsingPreset(true)
     setBiometricResult(null)
   }
 
@@ -195,6 +212,7 @@ export function CheckoutModal() {
     setClientIp('194.26.29.112 (Proxy/Datacenter NL)')
     setDeviceEntropy('Headless Chrome / Linux x86_64 Automation')
     setCheckoutVelocitySec(0.8)
+    setIsUsingPreset(true)
     setBiometricResult(null)
   }
 
@@ -244,6 +262,10 @@ export function CheckoutModal() {
     setIsSubmitting(true)
     const tempOrderId = generateOrderId()
 
+    const calculatedVelocity = isUsingPreset
+      ? checkoutVelocitySec
+      : Math.max(0.6, Math.round(((Date.now() - modalOpenedAtRef.current) / 1000) * 10) / 10)
+
     const telemetryPayload: FraudEvaluationPayload = {
       orderId: tempOrderId,
       totalAmount: finalTotal,
@@ -253,7 +275,7 @@ export function CheckoutModal() {
       paymentMethod,
       deviceEntropy,
       clientIp,
-      checkoutVelocitySec,
+      checkoutVelocitySec: calculatedVelocity,
       customerEmail: formData.customerEmail,
       shippingAddress: formData.deliveryAddress,
       biometricVerification: verifiedBiometrics
@@ -310,16 +332,24 @@ export function CheckoutModal() {
       clearCart()
       setIsCheckoutModalOpen(false)
 
+      // Mở modal diễn họa mật mã để người dùng / hội đồng quan sát quá trình mã hóa phong bì AES-256-GCM
+      setSelectedOrderForCrypto(createdOrder)
+      setIsCryptoVisualizerOpen(true)
+
       if (aiResult.decision === 'APPROVED') {
-        // Open Crypto Visualizer Modal to show the thesis council how AES-256-GCM encrypted the PII!
-        setSelectedOrderForCrypto(createdOrder)
-        setIsCryptoVisualizerOpen(true)
-      } else {
-        // HOLD_REVIEW -> Inform the user and guide them to Admin Hub
-        alert(
-          `🚨 CẢNH BÁO AN NINH AI:\nĐơn hàng ${createdOrder.orderCode} có điểm rủi ro cao (${aiResult.riskScore}/100 - HIGH RISK).\nLý do: ${aiResult.reasons[0]}\n\nĐơn hàng đã được chuyển vào "Hàng Đợi Kiểm Duyệt" trong Trang Quản Trị!`
+        showToast(
+          'SUCCESS',
+          'Đặt hàng thành công',
+          `Đơn hàng #${createdOrder.orderCode} đã được phê duyệt tự động và mã hóa an toàn.`
         )
-        setViewMode('ADMIN')
+      } else {
+        // HOLD_REVIEW: Đơn hàng bị tạm giữ thẩm định do thao tác quá nhanh hoặc phát hiện nghi vấn
+        // GIỮ KHÁCH HÀNG Ở GIAO DIỆN MUA SẮM (STOREFRONT), TUYỆT ĐỐI KHÔNG TỰ ĐỘNG CHUYỂN SANG TRANG ADMIN!
+        showToast(
+          'WARNING',
+          'Đơn hàng đang chờ kiểm duyệt (AI Risk Alert)',
+          `Đơn hàng #${createdOrder.orderCode} được AI tạm giữ để chuyên viên bảo mật thẩm định (Điểm rủi ro: ${aiResult.riskScore}/100 - ${aiResult.reasons[0]}).`
+        )
       }
     } catch (err: any) {
       console.error('Checkout error:', err)

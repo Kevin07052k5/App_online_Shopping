@@ -10,41 +10,62 @@ export interface DetectedLocationResult {
     lng: number
   }
   address: string
-  source: 'GPS_HARDWARE' | 'IP_NETWORK'
+  source: 'GPS_HARDWARE' | 'IP_NETWORK' | 'MANUAL'
+  accuracy?: number
+  isEstimate?: boolean
   error?: string
 }
 
 /**
- * Hàm lấy tọa độ từ GPS trình duyệt (ưu tiên số 1)
+ * Hàm lấy tọa độ từ GPS trình duyệt với 2 tầng (High Accuracy -> Low Accuracy)
  */
-function getBrowserGpsCoords(timeoutMs = 6000): Promise<{ lat: number; lng: number }> {
+function getBrowserGpsCoords(): Promise<{ lat: number; lng: number; accuracy: number }> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
       return reject(new Error('Trình duyệt không hỗ trợ Geolocation API'))
     }
 
+    // Tầng 1: Thử lấy GPS chính xác cao (phù hợp điện thoại / laptop có Wi-Fi)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         resolve({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
+          accuracy: Math.round(pos.coords.accuracy || 20),
         })
       },
-      (err) => {
-        reject(err)
+      (err1) => {
+        console.warn('GPS High Accuracy timeout/error, thử Low Accuracy...', err1)
+        // Tầng 2: Thử lấy vị trí Low Accuracy (dùng bộ nhớ đệm hệ điều hành)
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            resolve({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: Math.round(pos.coords.accuracy || 100),
+            })
+          },
+          (err2) => {
+            reject(err2)
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 6000,
+            maximumAge: 300000,
+          }
+        )
       },
       {
         enableHighAccuracy: true,
-        timeout: timeoutMs,
-        maximumAge: 0,
+        timeout: 5000,
+        maximumAge: 60000,
       }
     )
   })
 }
 
 /**
- * Hàm dự phòng lấy tọa độ thời gian thực qua IP mạng
- * (Cực kỳ hiệu quả trên máy tính PC / Laptop Windows không có cảm biến GPS phần cứng)
+ * Hàm dự phòng lấy tọa độ qua IP mạng nếu thiết bị không có cảm biến GPS
  */
 async function getNetworkIpCoords(): Promise<{ lat: number; lng: number }> {
   try {
@@ -138,44 +159,45 @@ export async function reverseGeocodeToVietnameseAddress(
 
 /**
  * HÀM CHÍNH: Tự động định vị vị trí hiện tại thực tế của người dùng
- * Thứ tự ưu tiên:
- * 1. GPS phần cứng trình duyệt (High Accuracy)
- * 2. IP Geolocation thời gian thực (nếu máy tính không có GPS hoặc người dùng chưa bấm Allow)
- * 3. Tự động dịch sang địa chỉ tiếng Việt chi tiết
+ * - Ưu tiên 1: GPS thực tế phần cứng
+ * - Ưu tiên 2: Ước tính theo IP mạng nếu thiết bị không có chip GPS
  */
 export async function detectRealCurrentLocation(): Promise<DetectedLocationResult> {
-  let coords: { lat: number; lng: number } | null = null
-  let source: 'GPS_HARDWARE' | 'IP_NETWORK' = 'GPS_HARDWARE'
-
-  // Bước 1: Thử GPS trình duyệt
+  // 1. Thử GPS phần cứng
   try {
-    coords = await getBrowserGpsCoords(5000)
-    source = 'GPS_HARDWARE'
-  } catch (gpsErr) {
-    console.info('GPS phần cứng không phản hồi hoặc bị từ chối, chuyển sang IP Geolocation thời gian thực...')
-    // Bước 2: Chuyển sang định vị IP mạng
+    const gps = await getBrowserGpsCoords()
+    const address = await reverseGeocodeToVietnameseAddress(gps.lat, gps.lng)
+    return {
+      success: true,
+      coords: { lat: gps.lat, lng: gps.lng },
+      address,
+      source: 'GPS_HARDWARE',
+      accuracy: gps.accuracy,
+      isEstimate: false,
+    }
+  } catch (gpsErr: any) {
+    console.info('GPS không thể kích hoạt trên thiết bị này, thử ước tính theo trạm IP...')
+
+    // 2. Dự phòng: Thử định vị IP mạng
     try {
-      coords = await getNetworkIpCoords()
-      source = 'IP_NETWORK'
+      const ipCoords = await getNetworkIpCoords()
+      const address = await reverseGeocodeToVietnameseAddress(ipCoords.lat, ipCoords.lng)
+      return {
+        success: true,
+        coords: ipCoords,
+        address,
+        source: 'IP_NETWORK',
+        isEstimate: true,
+        error: 'Vị trí ước tính theo trạm mạng Internet. Bạn có thể kéo ghim đỏ hoặc gõ tìm kiếm để chọn đúng số nhà.',
+      }
     } catch (ipErr: any) {
       return {
         success: false,
-        coords: { lat: 10.823, lng: 106.629 },
+        coords: { lat: 10.776, lng: 106.700 },
         address: '',
-        source: 'IP_NETWORK',
-        error: 'Không thể định vị vị trí hiện tại. Vui lòng kiểm tra kết nối mạng hoặc cấp quyền định vị!',
+        source: 'MANUAL',
+        error: 'Chưa thể xác định vị trí tự động. Vui lòng bấm vào bản đồ hoặc gõ địa chỉ của bạn.',
       }
     }
   }
-
-  // Bước 3: Dịch ngược tọa độ thành tên đường, quận, thành phố thực tế
-  const formattedAddress = await reverseGeocodeToVietnameseAddress(coords.lat, coords.lng)
-
-  return {
-    success: true,
-    coords,
-    address: formattedAddress,
-    source,
-  }
 }
-

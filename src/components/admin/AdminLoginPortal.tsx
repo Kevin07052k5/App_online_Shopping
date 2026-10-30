@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import Link from 'next/link'
 import {
   ShieldAlert,
   ShieldCheck,
@@ -85,13 +86,13 @@ export function AdminLoginPortal() {
 
       {/* Back to Storefront Link */}
       <div className="absolute top-6 left-6 z-20">
-        <a
+        <Link
           href="/"
           className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 backdrop-blur px-4 py-2 text-xs font-bold text-slate-300 hover:text-white hover:border-slate-700 transition shadow"
         >
           <ArrowLeft className="size-4" />
           <span>Về Cửa Hàng Group 9</span>
-        </a>
+        </Link>
       </div>
 
       {/* Main Login Card */}

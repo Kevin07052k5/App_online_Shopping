@@ -66,16 +66,26 @@ export function UserProfileModal() {
       if (res.success && res.address) {
         setAddress(res.address)
         setMapCoords(res.coords)
-        showToast(
-          'SUCCESS',
-          'Định vị thành công',
-          `Đã xác định vị trí thực tế của bạn: ${res.address}`
-        )
+        if (res.source === 'GPS_HARDWARE') {
+          showToast(
+            'SUCCESS',
+            'Định vị GPS thành công',
+            `Đã xác định vị trí GPS chính xác của bạn: ${res.address}`
+          )
+        } else {
+          showToast(
+            'INFO',
+            'Khu vực mạng Internet',
+            'Đã chuyển đến khu vực của bạn. Vui lòng kiểm tra lại số nhà hoặc kéo ghim đỏ!'
+          )
+          setIsMapPickerOpen(true)
+        }
       } else {
-        showToast('WARNING', 'Không thể định vị', res.error || 'Vui lòng cấp quyền truy cập vị trí')
+        showToast('WARNING', 'Không có GPS', 'Vui lòng chọn hoặc gõ địa chỉ trên bản đồ Google Maps!')
+        setIsMapPickerOpen(true)
       }
     } catch (e: any) {
-      showToast('DANGER', 'Lỗi định vị', 'Không thể lấy vị trí hiện tại của thiết bị')
+      setIsMapPickerOpen(true)
     } finally {
       setIsLocatingNow(false)
     }

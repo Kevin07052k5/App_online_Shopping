@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import Link from 'next/link'
 import { SecurityOrderProvider, useSecurityOrder } from '@/src/context/SecurityOrderContext'
 import { MarketplaceProvider } from '@/src/context/MarketplaceContext'
 import { AuthProvider, useAuth } from '@/src/context/AuthContext'
@@ -76,14 +77,14 @@ function AdminMainContent() {
             </div>
 
             {/* Back to Storefront Link */}
-            <a
+            <Link
               href="/"
               className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700 transition"
               title="Quay về gian hàng"
             >
               <ArrowLeft className="size-3.5" />
               <span className="hidden md:inline">Về Cửa Hàng</span>
-            </a>
+            </Link>
 
             {/* Logout Admin */}
             <button
@@ -138,7 +139,7 @@ function AdminMainContent() {
             <span>•</span>
             <span>HMAC-SHA256 Blind Index</span>
             <span>•</span>
-            <span>Gemini 1.5 Flash</span>
+            <span>Gemini 2.5 Flash / 2.0 Flash</span>
           </div>
         </div>
       </footer>

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   X,
   Mail,
@@ -33,6 +34,7 @@ export function AuthModal() {
   } = useAuth()
 
   const { showToast } = useSecurityOrder()
+  const router = useRouter()
 
   // Form states
   const [name, setName] = useState('')
@@ -63,7 +65,7 @@ export function AuthModal() {
           `Chào mừng Quản trị viên! Độ khớp SFace: ${(result.cosineSimilarity * 100).toFixed(1)}%.`
         )
         if (typeof window !== 'undefined') {
-          window.location.href = '/admin'
+          router.push('/admin')
         }
       } else {
         showToast(
@@ -129,7 +131,7 @@ export function AuthModal() {
         showToast('SUCCESS', 'Đăng nhập Quản Trị Viên', 'Đã xác thực quyền Admin Group 9.')
         // Redirect to /admin
         if (typeof window !== 'undefined') {
-          window.location.href = '/admin'
+          router.push('/admin')
         }
       } else {
         showToast('SUCCESS', 'Đăng nhập thành công', 'Chào mừng bạn quay trở lại!')
